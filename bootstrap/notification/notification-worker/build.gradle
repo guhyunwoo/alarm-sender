@@ -7,8 +7,8 @@ dependencies {
     implementation project(':usecase:dispatch-notification:port-in-impl')
     implementation project(':usecase:dispatch-notification:port-out-impl')
 
-    implementation project(':platform:email:interface')
-    implementation project(':platform:email:impl')
+    implementation project(':platform:email:email-interface')
+    implementation project(':platform:email:email-impl')
 
     implementation 'org.springframework.boot:spring-boot-starter'
     implementation 'tools.jackson.module:jackson-module-kotlin'

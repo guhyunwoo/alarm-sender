@@ -2,7 +2,7 @@ dependencies {
     api project(':usecase:dispatch-notification:port')
     implementation project(':core:notification:domain')
     implementation project(':core:notification:data')
-    implementation project(':platform:email:interface')
+    implementation project(':platform:email:email-interface')
 
     implementation 'org.springframework:spring-context'
 }

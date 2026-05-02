@@ -1,5 +1,5 @@
 dependencies {
-    api project(':platform:email:interface')
+    api project(':platform:email:email-interface')
 
     implementation 'org.springframework:spring-context'
     implementation 'org.slf4j:slf4j-api'

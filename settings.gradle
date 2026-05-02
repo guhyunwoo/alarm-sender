@@ -8,8 +8,8 @@ include 'bootstrap:notification:notification-batch'
 // core 도메인 모듈
 include 'core:notification:domain'
 include 'core:notification:data'
-include 'core:notification:test-fixture'
-include 'core:notification:test-stub'
+include 'core:notification:notification-test-fixture'
+include 'core:notification:notification-test-stub'
 
 // usecase 모듈 (각 use case별 port / port-in-impl / port-out-impl)
 include 'usecase:send-notification:port'
@@ -40,6 +40,6 @@ include 'usecase:reclaim-notification:port-out-impl'
 include 'infrastructure:jpa-postgres'
 
 // platform (외부 서비스 연동)
-include 'platform:email:interface'
-include 'platform:email:impl'
-include 'platform:email:test-stub'
+include 'platform:email:email-interface'
+include 'platform:email:email-impl'
+include 'platform:email:email-test-stub'
