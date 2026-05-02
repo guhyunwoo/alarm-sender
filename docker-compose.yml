@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: alarm-sender-postgres
+    environment:
+      POSTGRES_DB: alarm_sender
+      POSTGRES_USER: alarm
+      POSTGRES_PASSWORD: alarm
+    ports:
+      - "5432:5432"
+    volumes:
+      - alarm-sender-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alarm -d alarm_sender"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  alarm-sender-pg-data:
