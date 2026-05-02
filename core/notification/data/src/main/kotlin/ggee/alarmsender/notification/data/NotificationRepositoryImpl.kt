@@ -32,10 +32,8 @@ class NotificationRepositoryImpl(
         unreadOnly: Boolean,
         limit: Int,
         offset: Int,
-    ): List<Notification> {
-        // Phase 1 에서는 단순 조회만 구현. recipient/unread 인덱스를 활용한 최적 쿼리는 후속에서 추가.
-        return emptyList()
-    }
+    ): List<Notification> = jpa.findByRecipientPage(recipientId, unreadOnly, limit, offset)
+        .map { it.toDomain(objectMapper) }
 
     override fun save(notification: Notification): Notification {
         val saved = jpa.save(notification.toEntity(objectMapper))
