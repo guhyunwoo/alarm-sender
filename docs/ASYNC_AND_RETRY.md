@@ -1,0 +1,138 @@
+# 비동기 처리 구조 및 재시도 정책
+
+본 문서는 README 의 핵심 결정을 한 단계 깊이로 설명한다. 코드 진입점은 `usecase/dispatch-notification/port-in-impl/.../DispatchNotificationService.kt`, `core/notification/data/.../NotificationOutboxRepositoryImpl.kt`.
+
+---
+
+## 1. 전체 흐름
+
+```
+[Client]
+   │ POST /api/v1/notifications  (Idempotency-Key 헤더)
+   ▼
+[notification-api]
+   │ SendNotificationUseCase
+   │   ┌── 단일 트랜잭션 ──┐
+   │   │ INSERT notification │
+   │   │ INSERT notification_outbox (status=PENDING, available_at=now)
+   │   │ INSERT notification_history (CREATED)
+   │   └────────────────────┘
+   │ 201 Created (PENDING) 즉시 ACK
+   ▼
+[notification-worker (다중 인스턴스 가능)]
+   │ @Scheduled (fixedDelay 1s)
+   │ DispatchNotificationUseCase.execute()
+   │   1) claimBatch — UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED) RETURNING *
+   │   2) for each row: 외부 발송 호출 (트랜잭션 밖)
+   │   3) 결과 반영 — row 단위 새 트랜잭션
+   │        SUCCESS → outbox DONE + notification SENT + history SENT
+   │        TRANSIENT → outbox PENDING(available_at = now+backoff) + history TRANSIENT_FAILURE
+   │        EXHAUSTED → outbox DEAD + notification DEAD_LETTER + history EXHAUSTED
+   ▼
+[notification-batch]
+   │ @Scheduled (fixedDelay 5s)
+   │ ReclaimNotificationUseCase.execute()
+   │   IN_PROGRESS AND lease_expires_at < now → PENDING 으로 reclaim + history RECLAIMED
+   ▼
+[Client] GET / read API 로 결과 확인
+```
+
+---
+
+## 2. 상태 전이
+
+### 2.1 `notification`
+
+```
+PENDING ──worker claim──▶ IN_PROGRESS ──ok──▶ SENT
+                                │  ▲
+                                │  │  retry (transient failure)
+                                ▼  │
+                              FAILED (실태상 잠시 머무를 수 있는 단계 — 본 코드에서는 미사용)
+                                │
+                                └─ exceed max attempts ─▶ DEAD_LETTER ──manual retry──▶ PENDING
+```
+
+> 본 구현은 outbox 의 PENDING/IN_PROGRESS/DONE/DEAD 4상태로 충분하므로, notification 의 IN_PROGRESS 와 SENT 만 실질적으로 의미 있게 사용한다. FAILED 는 향후 부분 실패 모델 도입 여지를 위해 enum 에 남겨둔다.
+
+### 2.2 `notification_outbox`
+
+| 현재 상태 | 트리거 | 다음 상태 | 동반 동작 |
+|---|---|---|---|
+| PENDING | worker claim | IN_PROGRESS | lease_owner / lease_expires_at set, available_at 무효화 |
+| IN_PROGRESS | 발송 성공 | DONE | lease 비움, notification SENT, history SENT |
+| IN_PROGRESS | 일시 실패 (한도 미만) | PENDING | attempt_count++, available_at = now+backoff(attempt_count) |
+| IN_PROGRESS | 일시 실패 (한도 초과) | DEAD | notification DEAD_LETTER, history EXHAUSTED |
+| IN_PROGRESS | lease 만료 (배치 reclaim) | PENDING | lease 비움, history RECLAIMED |
+| DEAD | 운영자 수동 재시도 | PENDING | attempt_count = 0, last_error 비움, history MANUAL_RETRY |
+
+상태 전이는 `NotificationOutbox` 도메인 객체 안에서 require 로 보호되어 위반 시 IllegalArgumentException.
+
+---
+
+## 3. 재시도 백오프
+
+`ExponentialBackoffRetryPolicy(maxAttempts=5, baseDelay=1m)`
+
+| attemptCount | 다음 시도 대기 |
+|---|---|
+| 1 | 1m |
+| 2 | 2m |
+| 3 | 4m |
+| 4 | 8m |
+| 5 | 16m |
+| 6+ | DEAD 격리 |
+
+`RetryPolicy` 는 도메인 인터페이스이므로 정책 변경 시 빈 교체만으로 가능.
+
+---
+
+## 4. 트랜잭션 경계 (`AGENTS.md` 트랜잭션 규칙 준수)
+
+| 단계 | 트랜잭션 | 이유 |
+|---|---|---|
+| API: notification + outbox + history INSERT | 단일 @Transactional | 3 write 의 all-or-nothing 보장 |
+| Worker: claimBatch (UPDATE … FOR UPDATE SKIP LOCKED RETURNING) | 단일 SQL 자체 원자 | 별도 @Transactional 불필요 |
+| Worker: 외부 발송 호출 | **트랜잭션 밖** | 외부 호출이 트랜잭션을 점유하면 DB 커넥션을 길게 잡음 |
+| Worker: 결과 반영 (outbox 갱신 + history) | row 단위 새 트랜잭션 (TransactionTemplate) | 한 row 실패가 같은 배치의 다른 row 를 롤백시키지 않도록 |
+| Batch: reclaim 일괄 처리 | 단일 @Transactional | history 적재와 outbox 갱신의 원자성 |
+
+---
+
+## 5. 다중 워커 안전성
+
+- `SELECT … FOR UPDATE SKIP LOCKED` (PostgreSQL) — 동시 폴링 시 같은 row 잠긴 상태에서 락 대기 없이 다음 row 로 건너뛴다.
+- `lease_owner` + `lease_expires_at` — 워커가 사라져도 만료 시각 도래 시 다른 워커/배치가 PENDING 으로 reclaim.
+- 분산 락 없음. SKIP LOCKED + lease 가 충분.
+
+검증: `core/notification/data/.../NotificationOutboxRepositoryImplTest.kt` 의 `다중 워커 동시 claim — 같은 row 를 두 번 잡지 않는다 (SKIP LOCKED)` 테스트가 8 worker × limit 20 × row 100 시나리오로 중복 미발생을 확인한다.
+
+---
+
+## 6. 멱등성
+
+| 방어선 | 위치 | 동작 |
+|---|---|---|
+| `Idempotency-Key` 헤더 | API | 같은 키로 재시도 시 use case 단계에서 기존 알림 그대로 반환 (deduplicated=true) |
+| `notification.idempotency_key` UNIQUE (partial) | DB | 동시 race 시 마지막 보호선. NULL 은 다중 허용 |
+| `(recipient_id, type, ref_type, ref_id)` UNIQUE (partial) | DB | 같은 자연 키 중복 적재 방지. ref 가 NULL 인 경우 미적용 |
+| 컨트롤러 충돌 fallback | API | DataIntegrityViolation 발생 시 use case 한 번 더 호출해 기존 row 반환 |
+
+검증:
+- `SendNotificationServiceTest`: idempotencyKey / 자연 키 둘 다 멱등 검증
+- `NotificationRepositoryImplTest`: DB UNIQUE 제약 동작 검증
+- `NotificationControllerTest`: HTTP 레이어에서 두 번째 호출 200 OK + 같은 id 반환 검증
+
+---
+
+## 7. 운영 시나리오 매트릭스
+
+| 시나리오 | 보호 메커니즘 | 검증 테스트 |
+|---|---|---|
+| 같은 키 재요청 | 2단 멱등성 (헤더 + 자연 키) | SendNotificationServiceTest, NotificationControllerTest |
+| 다중 워커 동시 발송 | SKIP LOCKED | NotificationOutboxRepositoryImplTest |
+| 워커 죽음 / GC pause | lease 만료 reclaim 배치 | NotificationOutboxRepositoryImplTest, ReclaimNotificationServiceTest |
+| 일시적 외부 장애 | 지수 백오프 + attempt 누적 | DispatchNotificationServiceTest |
+| 영구적 실패 | 한도 초과 시 DEAD_LETTER 격리 | DispatchNotificationServiceTest |
+| 서버 재시작 | DB 영속화 → 재기동 후 자동 재개 | (런타임 시나리오, 자동 재개는 워커 부팅이 곧 검증) |
+| 멀티 디바이스 동시 read | readAt 한 번만 set | ReadNotificationServiceTest, NotificationControllerTest |
