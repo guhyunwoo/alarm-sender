@@ -40,13 +40,99 @@
 
 ## 실행 방법
 
-> 구현 진행에 따라 추가.
+### 사전 요구
+
+- JDK 21 (Gradle 9 toolchain 으로 자동 다운로드 가능)
+- Docker Desktop (PostgreSQL 컨테이너 / 통합 테스트 TestContainers)
+
+### 단계
+
+```bash
+# 1) PostgreSQL 16 기동 (alarm/alarm/alarm_sender)
+docker compose up -d postgres
+
+# 2) API 서버 (port 8080) — Flyway 가 V1 마이그레이션 자동 적용
+./gradlew :bootstrap:notification:notification-api:bootRun
+
+# 3) (별 터미널) 비동기 발송 워커 — 1초 주기 폴링
+./gradlew :bootstrap:notification:notification-worker:bootRun
+
+# 4) (별 터미널) 스턱 복구 배치 — 5초 주기 lease 만료 reclaim
+./gradlew :bootstrap:notification:notification-batch:bootRun
+```
+
+테스트 실행:
+
+```bash
+./gradlew test          # 단위 + TestContainers 통합 테스트 전체
+./gradlew compileKotlin # 타입/의존성 검증만 빠르게
+```
 
 ---
 
 ## API 목록 및 예시
 
-> 구현 진행에 따라 추가.
+전체 계약은 [`docs/API_SPEC.yaml`](./docs/API_SPEC.yaml) 참조. 핵심 4개:
+
+| Method | Path | 설명 |
+|---|---|---|
+| POST | `/api/v1/notifications` | 알림 발송 요청 (`Idempotency-Key` 헤더 권장) |
+| GET | `/api/v1/notifications/{id}` | 단건 조회 (본인만 가능 → 외 403) |
+| GET | `/api/v1/notifications?unreadOnly=&limit=&offset=` | 본인 알림 목록 (최신순) |
+| POST | `/api/v1/notifications/{id}/read` | 읽음 처리 (멀티 디바이스 멱등) |
+
+### 발송 요청 예시
+
+```bash
+curl -X POST http://localhost:8080/api/v1/notifications \
+  -H 'Content-Type: application/json' \
+  -H 'X-User-Id: user-123' \
+  -H 'Idempotency-Key: enroll-2026-05-03-001' \
+  -d '{
+    "recipientId": "user-123",
+    "type": "ENROLL_COMPLETED",
+    "channel": "EMAIL",
+    "payload": { "title": "수강 신청 완료", "body": "Spring Boot 입문 강의에 등록되었습니다." },
+    "refType": "ENROLLMENT",
+    "refId": "1001"
+  }'
+# → 201 Created (신규)
+# → 200 OK (같은 Idempotency-Key 재요청 시 기존 알림 그대로)
+```
+
+응답 예시:
+
+```json
+{
+  "id": 42,
+  "recipientId": "user-123",
+  "type": "ENROLL_COMPLETED",
+  "channel": "EMAIL",
+  "payload": { "title": "수강 신청 완료", "body": "..." },
+  "refType": "ENROLLMENT",
+  "refId": "1001",
+  "status": "PENDING",
+  "readAt": null,
+  "createdAt": "2026-05-03T10:15:30Z",
+  "sentAt": null
+}
+```
+
+### 목록 조회
+
+```bash
+curl 'http://localhost:8080/api/v1/notifications?unreadOnly=true&limit=20' \
+  -H 'X-User-Id: user-123'
+```
+
+### 읽음 처리
+
+```bash
+curl -X POST http://localhost:8080/api/v1/notifications/42/read \
+  -H 'X-User-Id: user-123'
+# → { "id": 42, "readAt": "2026-05-03T11:00:00Z", "newlyRead": true }
+# 두 번째 호출 → newlyRead=false (no-op)
+```
 
 ---
 
@@ -78,9 +164,13 @@ PENDING ──claim──▶ IN_PROGRESS ──ok──▶ SENT
 
 ---
 
+> **상세 문서**: 비동기 흐름·재시도·트랜잭션 경계는 [`docs/ASYNC_AND_RETRY.md`](./docs/ASYNC_AND_RETRY.md), 명세 해석 및 개선 제안은 [`docs/REQUIREMENTS_INTERPRETATION.md`](./docs/REQUIREMENTS_INTERPRETATION.md), API 계약은 [`docs/API_SPEC.yaml`](./docs/API_SPEC.yaml).
+
+---
+
 ## 요구사항 해석 및 가정
 
-과제 명세의 모호한 부분을 다음과 같이 해석한다.
+과제 명세의 모호한 부분을 다음과 같이 해석한다 (전문은 [`docs/REQUIREMENTS_INTERPRETATION.md`](./docs/REQUIREMENTS_INTERPRETATION.md)).
 
 - **"동일 이벤트"의 정의** — `Idempotency-Key`(클라이언트 재시도 방어) + `(recipient, type, ref_type, ref_id)` 자연 키(서버 측 중복 진입 방어). 두 축 모두 UNIQUE 제약으로 DB가 보장한다.
 - **"비동기"의 범위** — API 트랜잭션은 알림 + outbox INSERT만 수행하고 즉시 ACK. 실제 발송은 `notification-worker` 프로세스가 폴링하여 처리.
@@ -112,26 +202,32 @@ PENDING ──claim──▶ IN_PROGRESS ──ok──▶ SENT
 ./gradlew test
 ```
 
-핵심 테스트 시나리오:
+핵심 테스트 시나리오 (자동화 검증 완료):
 
-- 같은 `Idempotency-Key`로 두 번 요청 → 기존 알림 그대로 반환, outbox row 1개
-- 다중 워커 동시 폴링 → 동일 row 단 1회만 SENT
-- lease 만료 → 다른 워커가 reclaim 후 처리 완료
-- 재시도 한도 초과 → `DEAD_LETTER` 전이, `last_error` 기록
-- 워커 재시작 → 미처리 outbox 자동 재개
-- 멀티 디바이스 동시 read → `read_at` 한 번만 set, 이후 no-op
+| 시나리오 | 검증 위치 |
+|---|---|
+| 같은 `Idempotency-Key` 두 번 요청 → 기존 알림 그대로 반환, outbox row 1개 | `SendNotificationServiceTest` / `NotificationControllerTest` |
+| 자연 키 (recipient + type + ref) 중복 → 기존 알림 반환 | `SendNotificationServiceTest` |
+| DB UNIQUE 제약 — 동시 race 마지막 보호선 | `NotificationRepositoryImplTest` |
+| **다중 워커 동시 폴링 — 동일 row 두 번 잡지 않음 (SKIP LOCKED)** | `NotificationOutboxRepositoryImplTest` (8 worker × 100 row 시나리오) |
+| lease 만료 → reclaim 으로 PENDING 복귀 | `NotificationOutboxRepositoryImplTest` / `ReclaimNotificationServiceTest` |
+| 재시도 한도 초과 → outbox DEAD + notification DEAD_LETTER | `DispatchNotificationServiceTest` |
+| 지수 백오프 (1m → 16m) | `NotificationOutboxTest` (도메인) |
+| 멀티 디바이스 동시 read → readAt 한 번만 set | `ReadNotificationServiceTest` / `NotificationControllerTest` |
+| 본인 외 사용자 조회 시 403 | `NotificationControllerTest` |
 
-레이어별 테스트 위치는 `AGENTS.md`의 매트릭스를 따른다.
+레이어별 테스트 위치는 `AGENTS.md` 의 매트릭스를 따른다 (도메인: 단위, usecase: test-stub 활용, 데이터/Web: TestContainers PG).
 
 ---
 
 ## 미구현 / 제약사항
 
-- **실제 SMTP 미연동** — `EmailSender`는 로그 출력 Mock. 인터페이스만 운영용으로 유지.
-- **IN_APP 푸시 채널 미연동** — DB 적재까지만 수행. 디바이스 연동은 `platform/push`의 인터페이스만 노출.
+- **실제 SMTP 미연동** — `EmailSender` 는 로그 출력 Mock (`platform/email/email-impl`). 인터페이스만 운영용으로 유지.
+- **IN_APP 푸시 채널** — DB 적재까지만 수행. 디바이스 연동(FCM 등) 미구현.
 - **인증/인가** — `X-User-Id` 헤더 기반 단순 식별. JWT/OAuth 미적용.
-- **분산 트레이싱·메트릭** — 미적용.
-- **선택 구현 항목** — 발송 예약 / 템플릿 관리 / 수동 재시도는 시간 사정에 따라 누락될 수 있으며, 누락 시 본 섹션과 커밋 메시지에 명시한다.
+- **수동 재시도 API** — 도메인 `manualRetry()` 와 use case 진입점 일부만 존재. REST 엔드포인트는 미노출.
+- **발송 예약 / 템플릿 관리** — 명세상 선택. 시간 사정으로 미구현.
+- **분산 트레이싱·메트릭** — 미적용 (인터페이스조차 미노출).
 
 ---
 
