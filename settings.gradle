@@ -1,1 +1,45 @@
 rootProject.name = 'alarm-sender'
+
+// bootstrap (실행 가능한 Spring Boot 애플리케이션)
+include 'bootstrap:notification:notification-api'
+include 'bootstrap:notification:notification-worker'
+include 'bootstrap:notification:notification-batch'
+
+// core 도메인 모듈
+include 'core:notification:domain'
+include 'core:notification:data'
+include 'core:notification:test-fixture'
+include 'core:notification:test-stub'
+
+// usecase 모듈 (각 use case별 port / port-in-impl / port-out-impl)
+include 'usecase:send-notification:port'
+include 'usecase:send-notification:port-in-impl'
+include 'usecase:send-notification:port-out-impl'
+
+include 'usecase:dispatch-notification:port'
+include 'usecase:dispatch-notification:port-in-impl'
+include 'usecase:dispatch-notification:port-out-impl'
+
+include 'usecase:list-notifications:port'
+include 'usecase:list-notifications:port-in-impl'
+include 'usecase:list-notifications:port-out-impl'
+
+include 'usecase:get-notification:port'
+include 'usecase:get-notification:port-in-impl'
+include 'usecase:get-notification:port-out-impl'
+
+include 'usecase:read-notification:port'
+include 'usecase:read-notification:port-in-impl'
+include 'usecase:read-notification:port-out-impl'
+
+include 'usecase:reclaim-notification:port'
+include 'usecase:reclaim-notification:port-in-impl'
+include 'usecase:reclaim-notification:port-out-impl'
+
+// infrastructure (DB, Web 등 기술 설정)
+include 'infrastructure:jpa-postgres'
+
+// platform (외부 서비스 연동)
+include 'platform:email:interface'
+include 'platform:email:impl'
+include 'platform:email:test-stub'

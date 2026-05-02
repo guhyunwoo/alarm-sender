@@ -1,0 +1,17 @@
+dependencies {
+    implementation project(':core:notification:domain')
+    implementation project(':core:notification:data')
+    implementation project(':infrastructure:jpa-postgres')
+
+    implementation project(':usecase:dispatch-notification:port')
+    implementation project(':usecase:dispatch-notification:port-in-impl')
+    implementation project(':usecase:dispatch-notification:port-out-impl')
+
+    implementation project(':platform:email:interface')
+    implementation project(':platform:email:impl')
+
+    implementation 'org.springframework.boot:spring-boot-starter'
+    implementation 'tools.jackson.module:jackson-module-kotlin'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}

@@ -1,0 +1,13 @@
+dependencies {
+    implementation project(':core:notification:domain')
+    implementation project(':core:notification:data')
+    implementation project(':infrastructure:jpa-postgres')
+
+    implementation project(':usecase:reclaim-notification:port')
+    implementation project(':usecase:reclaim-notification:port-in-impl')
+    implementation project(':usecase:reclaim-notification:port-out-impl')
+
+    implementation 'org.springframework.boot:spring-boot-starter'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}

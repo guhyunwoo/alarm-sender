@@ -1,0 +1,7 @@
+dependencies {
+    api project(':usecase:get-notification:port')
+    implementation project(':core:notification:domain')
+    implementation project(':core:notification:data')
+
+    implementation 'org.springframework:spring-context'
+}

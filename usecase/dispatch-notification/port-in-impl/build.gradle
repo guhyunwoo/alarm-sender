@@ -1,0 +1,12 @@
+dependencies {
+    api project(':usecase:dispatch-notification:port')
+    implementation project(':core:notification:domain')
+
+    implementation 'org.springframework:spring-tx'
+    implementation 'org.springframework:spring-context'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation project(':core:notification:test-fixture')
+    testImplementation project(':core:notification:test-stub')
+    testImplementation project(':platform:email:test-stub')
+}
