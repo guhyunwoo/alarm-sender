@@ -1,0 +1,146 @@
+# 알림 발송 시스템 (alarm-sender)
+
+라이브클래스 백엔드 셀 채용 과제 **C — 알림 발송 시스템** 구현 저장소.
+
+> 본 README는 구현 진행에 따라 점진적으로 채워진다. 현재 상태는 **확정된 설계** 위주이며, 실행 명령·API 예시 등 일부는 구현이 완료되는 시점에 보강된다.
+
+---
+
+## 프로젝트 개요
+
+수강 신청 완료 / 결제 확정 / 강의 시작 D-1 / 취소 처리 등 비즈니스 이벤트 발생 시 사용자에게 EMAIL · IN_APP 알림을 발송하는 시스템이다.
+
+핵심 평가 축 4가지에 대해 명시적으로 답을 가진다:
+
+| 축 | 본 시스템의 답 |
+|---|---|
+| **비동기** | API 트랜잭션과 발송 워커를 별 프로세스로 분리. Outbox 패턴으로 안전하게 큐잉. |
+| **멱등성** | `Idempotency-Key` 헤더 + `(recipient, type, ref)` 자연 키 2단 UNIQUE 제약. |
+| **재시도** | 지수 백오프 (1m → 2m → 4m → 8m → 16m, 최대 5회) + DEAD_LETTER 격리. |
+| **운영 고려** | `SELECT ... FOR UPDATE SKIP LOCKED` 기반 다중 워커 안전 폴링, lease 만료 reclaim, 재시작 무손실. |
+
+> 한 줄 정리 — *비즈니스 트랜잭션과 알림 발송을 분리하고, 일시 장애·재시작·다중 인스턴스 환경에서 유실/중복 없이 알림을 처리한다.*
+
+---
+
+## 기술 스택
+
+| 영역 | 선택 |
+|---|---|
+| 언어 | Kotlin 2.2.21 (JDK 21 toolchain) |
+| 프레임워크 | Spring Boot 4.0.6 (`spring-boot-starter-webmvc`, `spring-boot-starter-data-jpa`) |
+| DB | PostgreSQL 16 (Docker) |
+| 빌드 | Gradle (Groovy DSL), 멀티 모듈 |
+| 직렬화 | Jackson Module Kotlin |
+| 테스트 | JUnit 5, Spring Boot Test |
+
+> 모듈 구조와 의존 규칙은 [`AGENTS.md`](./AGENTS.md)의 **Clean Architecture + Monorepo** 가이드를 그대로 따른다. `bootstrap/notification/`을 진입점으로 `notification-api`(요청 접수), `notification-worker`(비동기 발송), `notification-batch`(스턱 복구·DLQ) 3개 부트스트랩 애플리케이션으로 분리한다.
+
+---
+
+## 실행 방법
+
+> 구현 진행에 따라 추가.
+
+---
+
+## API 목록 및 예시
+
+> 구현 진행에 따라 추가.
+
+---
+
+## 데이터 모델 설명
+
+### 테이블 구성 (확정 설계)
+
+- **`notification`** — 알림 본체
+  - 주요 컬럼: 수신자, 타입, 채널, 페이로드(jsonb), 상태, 읽음 시각, 생성/예약/발송 시각, 낙관적 락 버전
+  - `UNIQUE (idempotency_key)` — 클라이언트 재시도 방어
+  - `UNIQUE (recipient, type, ref_type, ref_id)` — 자연 키 중복 방어
+- **`notification_outbox`** — 비동기 처리 큐
+  - 주요 컬럼: 대상 알림 FK, `available_at`(다음 시도 시각), `attempt_count`, `lease_owner`, `lease_expires_at`, 상태, `last_error`
+  - `INDEX (status, available_at)` — 폴링 효율
+- **`notification_history`** — 상태 전이 이력 (감사·디버깅)
+- **`notification_template`** *(선택 구현)* — 타입·채널별 메시지 템플릿
+
+### 상태 전이
+
+```
+PENDING ──claim──▶ IN_PROGRESS ──ok──▶ SENT
+                       │  ▲
+              fail     │  │ retry (available_at 갱신)
+                       ▼  │
+                   FAILED(transient)
+                       │
+                       └─── exceed-max ───▶ DEAD_LETTER ──manual retry──▶ PENDING
+```
+
+---
+
+## 요구사항 해석 및 가정
+
+과제 명세의 모호한 부분을 다음과 같이 해석한다.
+
+- **"동일 이벤트"의 정의** — `Idempotency-Key`(클라이언트 재시도 방어) + `(recipient, type, ref_type, ref_id)` 자연 키(서버 측 중복 진입 방어). 두 축 모두 UNIQUE 제약으로 DB가 보장한다.
+- **"비동기"의 범위** — API 트랜잭션은 알림 + outbox INSERT만 수행하고 즉시 ACK. 실제 발송은 `notification-worker` 프로세스가 폴링하여 처리.
+- **"실제 메시지 브로커 없이 운영 전환 가능"** — `OutboxPublisher` 인터페이스를 두고, 현재는 DB 폴링 어댑터, 추후 Kafka/SQS 어댑터로 교체. 도메인·유즈케이스 변경 없음.
+- **"다중 인스턴스 중복 방지"** — Postgres `SELECT ... FOR UPDATE SKIP LOCKED` + `lease_owner`/`lease_expires_at` short-lease 패턴.
+- **"처리 중 상태가 일정 시간 이상 지속"** — `IN_PROGRESS` AND `lease_expires_at < now()` 조건의 row를 배치가 `PENDING`으로 reclaim.
+- **"서버 재시작 후 유실 없음"** — 모든 중간 상태가 DB에 영속. 워커 재기동 시 자연 재개.
+- **"예외를 단순히 무시하지 않음"** — 실패는 항상 `notification_history`에 기록하고 `attempt_count`/`last_error`를 갱신. 한도 초과 시 `DEAD_LETTER`로 격리.
+- **인증/인가** — `X-User-Id` 헤더 기반 단순 식별 (과제 허용 범위).
+
+---
+
+## 설계 결정과 이유
+
+1. **Outbox 패턴 채택** — 본 데이터 변경과 outbox INSERT가 단일 트랜잭션에 묶여 원자성 보장. "브로커 없이 + 운영 전환 가능 + 재시작 무손실" 세 요구사항을 동시에 만족하는 가장 단순한 구조.
+2. **`SELECT ... FOR UPDATE SKIP LOCKED`** — 다중 워커가 동시에 폴링해도 같은 row를 잡지 않으며, 락 대기 없이 다음 row로 건너뛰어 throughput을 유지한다. (H2/MySQL이 아닌 Postgres를 픽스한 이유.)
+3. **Lease 만료 기반 스턱 복구** — 워커 죽음·GC pause·네트워크 단절 등 어떤 이유든 `lease_expires_at` 만료만 보고 reclaim. 정상 종료 신호에 의존하지 않음.
+4. **재시도 정책** — 지수 백오프 1m → 2m → 4m → 8m → 16m, 최대 5회. `available_at`을 갱신하는 방식으로 표현해 별도 스케줄러 없이 같은 폴링 루프가 처리.
+5. **멱등성 2단 방어** — HTTP 헤더 `Idempotency-Key`는 클라이언트 재시도 방어용, 자연 키는 서로 다른 클라이언트가 같은 이벤트로 들어오는 경우 방어용. 둘 다 DB UNIQUE 제약으로 동시성 안전.
+6. **트랜잭션 범위 — `AGENTS.md` 트랜잭션 규칙 준수** — API 측은 알림 + outbox INSERT만 단일 트랜잭션. 외부 발송 호출은 트랜잭션 밖. 부분 성공이 비즈니스 불변식을 깨지 않도록 설계.
+7. **읽음 처리 멀티 디바이스 동시성** — `read_at IS NULL`일 때만 `now()`로 set, 이후 호출은 no-op. 이미 읽은 시각을 덮어쓰지 않으므로 멀티 디바이스 안전.
+8. **수동 재시도 시 `attempt_count` 정책** — `DEAD_LETTER → PENDING` 전이 시 `attempt_count`를 0으로 초기화. 운영자의 명시적 의지로 새 시도를 시작한다는 의미. `notification_history`에 reason="MANUAL_RETRY"를 남겨 추적성 유지.
+
+---
+
+## 테스트 실행 방법
+
+```bash
+./gradlew test
+```
+
+핵심 테스트 시나리오:
+
+- 같은 `Idempotency-Key`로 두 번 요청 → 기존 알림 그대로 반환, outbox row 1개
+- 다중 워커 동시 폴링 → 동일 row 단 1회만 SENT
+- lease 만료 → 다른 워커가 reclaim 후 처리 완료
+- 재시도 한도 초과 → `DEAD_LETTER` 전이, `last_error` 기록
+- 워커 재시작 → 미처리 outbox 자동 재개
+- 멀티 디바이스 동시 read → `read_at` 한 번만 set, 이후 no-op
+
+레이어별 테스트 위치는 `AGENTS.md`의 매트릭스를 따른다.
+
+---
+
+## 미구현 / 제약사항
+
+- **실제 SMTP 미연동** — `EmailSender`는 로그 출력 Mock. 인터페이스만 운영용으로 유지.
+- **IN_APP 푸시 채널 미연동** — DB 적재까지만 수행. 디바이스 연동은 `platform/push`의 인터페이스만 노출.
+- **인증/인가** — `X-User-Id` 헤더 기반 단순 식별. JWT/OAuth 미적용.
+- **분산 트레이싱·메트릭** — 미적용.
+- **선택 구현 항목** — 발송 예약 / 템플릿 관리 / 수동 재시도는 시간 사정에 따라 누락될 수 있으며, 누락 시 본 섹션과 커밋 메시지에 명시한다.
+
+---
+
+## AI 활용 범위
+
+- **사용 도구** — Claude Code (Anthropic), Codex (OpenAI)
+- **활용 방식**
+  - 설계 검토 및 트레이드오프 토론 (Outbox vs Spring `@Async` vs ApplicationEvent)
+  - 명세 및 설계에 따른 구현, 검증, 테스트.
+  - `docs/` 문서 정리
+  - 테스트 엣지 케이스 분석
+- **검증 방식** — AI가 제안한 모든 코드는 직접 컴파일·테스트 실행으로 확인. 외부 라이브러리/API 호출 시 공식 문서 교차 확인. 설계 최종 결정은 직접 선택.
