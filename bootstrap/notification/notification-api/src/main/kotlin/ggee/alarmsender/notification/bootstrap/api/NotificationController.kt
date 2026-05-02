@@ -1,0 +1,99 @@
+package ggee.alarmsender.notification.bootstrap.api
+
+import ggee.alarmsender.notification.usecase.getnotification.port.GetNotificationQuery
+import ggee.alarmsender.notification.usecase.getnotification.port.GetNotificationUseCase
+import ggee.alarmsender.notification.usecase.listnotifications.port.ListNotificationsQuery
+import ggee.alarmsender.notification.usecase.listnotifications.port.ListNotificationsUseCase
+import ggee.alarmsender.notification.usecase.readnotification.port.ReadNotificationCommand
+import ggee.alarmsender.notification.usecase.readnotification.port.ReadNotificationUseCase
+import ggee.alarmsender.notification.usecase.sendnotification.port.SendNotificationCommand
+import ggee.alarmsender.notification.usecase.sendnotification.port.SendNotificationUseCase
+import jakarta.validation.Valid
+import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.http.HttpStatus
+import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestHeader
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.RestController
+
+@RestController
+@RequestMapping("/api/v1/notifications")
+class NotificationController(
+    private val sendUseCase: SendNotificationUseCase,
+    private val listUseCase: ListNotificationsUseCase,
+    private val getUseCase: GetNotificationUseCase,
+    private val readUseCase: ReadNotificationUseCase,
+) {
+
+    /**
+     * POST /api/v1/notifications
+     * Idempotency-Key 헤더로 클라이언트 재시도 안전.
+     * 자연 키(recipient + type + ref) 가 중복인 경우에도 기존 알림을 그대로 반환.
+     * 동시성으로 race 발생 시 DB UNIQUE 제약이 마지막 보호선 — 충돌 시 재조회 정책으로 응답.
+     */
+    @PostMapping
+    fun create(
+        @RequestHeader("X-User-Id") requesterId: String,
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
+        @Valid @RequestBody request: CreateNotificationRequest,
+    ): ResponseEntity<NotificationResponse> {
+        val command = SendNotificationCommand(
+            recipientId = request.recipientId,
+            type = request.type,
+            channel = request.channel,
+            payload = request.payload,
+            idempotencyKey = idempotencyKey,
+            refType = request.refType,
+            refId = request.refId,
+        )
+        return try {
+            val result = sendUseCase.execute(command)
+            val status = if (result.deduplicated) HttpStatus.OK else HttpStatus.CREATED
+            ResponseEntity.status(status).body(NotificationResponse.from(result.notification))
+        } catch (_: DataIntegrityViolationException) {
+            // 동시성 충돌: 다른 요청이 같은 키로 먼저 적재됨. 한 번 더 호출하면 멱등성 검사를 통과해 기존 알림 반환.
+            val retried = sendUseCase.execute(command)
+            ResponseEntity.status(HttpStatus.OK).body(NotificationResponse.from(retried.notification))
+        }
+    }
+
+    @GetMapping("/{id}")
+    fun get(
+        @RequestHeader("X-User-Id") requesterId: String,
+        @PathVariable id: Long,
+    ): NotificationResponse = NotificationResponse.from(getUseCase.execute(GetNotificationQuery(id, requesterId)))
+
+    @GetMapping
+    fun list(
+        @RequestHeader("X-User-Id") requesterId: String,
+        @RequestParam(required = false) recipientId: String?,
+        @RequestParam(defaultValue = "false") unreadOnly: Boolean,
+        @RequestParam(defaultValue = "20") limit: Int,
+        @RequestParam(defaultValue = "0") offset: Int,
+    ): List<NotificationResponse> {
+        // recipientId 미지정 시 본인 알림 조회
+        val targetRecipient = recipientId ?: requesterId
+        require(targetRecipient == requesterId) { "본인의 알림만 조회 가능" }
+
+        return listUseCase.execute(ListNotificationsQuery(targetRecipient, unreadOnly, limit, offset))
+            .map(NotificationResponse::from)
+    }
+
+    @PostMapping("/{id}/read")
+    fun read(
+        @RequestHeader("X-User-Id") requesterId: String,
+        @PathVariable id: Long,
+    ): ReadNotificationResponse {
+        val r = readUseCase.execute(ReadNotificationCommand(id, requesterId))
+        return ReadNotificationResponse(
+            id = r.notification.requireId(),
+            readAt = r.notification.readAt!!,
+            newlyRead = r.newlyRead,
+        )
+    }
+}

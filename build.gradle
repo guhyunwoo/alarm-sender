@@ -8,7 +8,14 @@ plugins {
 }
 
 allprojects {
-    group = 'ggee.alarmsender'
+    // 동일 leaf 이름 (port / port-in-impl / port-out-impl) 모듈들이 Maven 좌표 충돌로
+    // dependency substitution 되는 것을 막기 위해 path 기반으로 group 을 분리한다.
+    if (project == rootProject) {
+        group = 'ggee.alarmsender'
+    } else {
+        def parentPath = project.path.substring(0, project.path.lastIndexOf(':'))
+        group = 'ggee.alarmsender' + parentPath.replace(':', '.')
+    }
     version = '0.0.1-SNAPSHOT'
 
     repositories {
