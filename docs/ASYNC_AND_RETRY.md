@@ -1,7 +1,5 @@
 # 비동기 처리 구조 및 재시도 정책
 
-본 문서는 README 의 핵심 결정을 한 단계 깊이로 설명한다. 코드 진입점은 `usecase/dispatch-notification/port-in-impl/.../DispatchNotificationService.kt`, `core/notification/data/.../NotificationOutboxRepositoryImpl.kt`.
-
 ---
 
 ## 1. 전체 흐름
