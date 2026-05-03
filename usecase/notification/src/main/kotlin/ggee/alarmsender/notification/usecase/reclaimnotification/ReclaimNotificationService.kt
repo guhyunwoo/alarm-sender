@@ -11,9 +11,9 @@ import java.time.Clock
 import java.time.Instant
 
 /**
- * lease 만료된 IN_PROGRESS outbox row 를 PENDING 으로 복귀시킨다.
+ * lease 만료된 IN_PROGRESS outbox row 를 PENDING 으로 되돌린다.
  *
- * 워커 죽음 / GC pause / 네트워크 단절 등 정상 종료 신호가 없는 모든 상황에서
+ * 워커 죽음 / GC pause / 네트워크 단절 등 정상 종료 신호 없이 사라진 경우를
  * lease_expires_at 만 보고 reclaim 한다.
  */
 @Service

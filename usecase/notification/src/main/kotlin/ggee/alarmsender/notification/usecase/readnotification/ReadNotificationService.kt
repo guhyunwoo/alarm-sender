@@ -14,8 +14,8 @@ import java.time.Instant
 /**
  * 멀티 디바이스 동시 read 시에도 readAt 은 한 번만 set, 이후 호출은 no-op.
  *
- * 도메인 객체의 markAsRead 는 객체 단위 멱등성을 보장하고,
- * 실제 동시성은 저장소의 조건부 UPDATE(read_at IS NULL) 로 한 번만 성공하게 한다.
+ * 객체 단위 멱등성은 markAsRead 가 처리하고, 실제 동시 race 는 저장소의
+ * 조건부 UPDATE(read_at IS NULL) 가 한 호출만 성공시키도록 막는다.
  */
 @Service
 class ReadNotificationService(

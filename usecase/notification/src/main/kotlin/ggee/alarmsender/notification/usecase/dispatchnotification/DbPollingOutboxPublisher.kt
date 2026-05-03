@@ -7,10 +7,10 @@ import java.time.Duration
 import java.time.Instant
 
 /**
- * DB 폴링 기반 [OutboxPublisher] 구현. 본 시스템의 기본 어댑터.
+ * DB 폴링 기반 [OutboxPublisher] 구현. 기본 어댑터.
  *
- * 운영 전환 시 본 클래스를 KafkaOutboxPublisher 또는 SqsOutboxPublisher 로 교체.
- * 도메인 객체와 유즈케이스 코드는 변경되지 않는다.
+ * 운영 전환 시 이 클래스를 KafkaOutboxPublisher / SqsOutboxPublisher 등으로 갈아끼우면 된다.
+ * 도메인 객체와 유즈케이스 코드는 그대로.
  */
 @Component
 class DbPollingOutboxPublisher(

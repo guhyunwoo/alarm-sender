@@ -27,16 +27,16 @@ import java.time.Instant
  *
  * 트랜잭션 경계 (AGENTS.md 트랜잭션 규칙):
  *  1. claim — 단일 SQL (UPDATE … FOR UPDATE SKIP LOCKED RETURNING) 자체가 원자.
- *  2. 외부 발송 호출 — 트랜잭션 밖. 외부 호출이 트랜잭션을 점유하면 안 된다.
+ *  2. 외부 발송 호출 — 트랜잭션 밖. 외부 호출이 트랜잭션을 잡고 있으면 안 된다.
  *  3. 결과 반영(outbox + notification + history) — row 단위 새 트랜잭션 (REQUIRES_NEW).
- *     부분 실패 시 row 단위로만 롤백되고 같은 batch 의 다른 row 처리는 계속된다.
+ *     부분 실패는 row 단위로만 롤백돼서 같은 batch 의 다른 row 처리는 계속 진행된다.
  *
- * 사용자 가시 상태 vs 워커 처리 상태 분리:
- *  - notification.status (PENDING/SENT/DEAD_LETTER) 는 사용자가 인식하는 상태
- *  - outbox.status      (PENDING/IN_PROGRESS/DONE/DEAD) 는 워커 처리 상태
- *  발송 중 IN_PROGRESS 는 사용자에게 보이지 않으며, outbox 만 가짐.
+ * 사용자 가시 상태와 워커 처리 상태 분리:
+ *  - notification.status (PENDING/SENT/DEAD_LETTER) — 사용자가 보는 상태
+ *  - outbox.status       (PENDING/IN_PROGRESS/DONE/DEAD) — 워커 내부 상태
+ *  발송 중 IN_PROGRESS 는 outbox 에만 있고 사용자에게 노출되지 않는다.
  *
- * IN_APP 채널: 외부 호출 없이 즉시 SENT 처리. 클라이언트는 GET /notifications 로 조회한다.
+ * IN_APP 채널: 외부 호출 없이 바로 SENT 처리. 클라이언트는 GET /notifications 로 가져간다.
  */
 @Service
 class DispatchNotificationService(
@@ -65,13 +65,13 @@ class DispatchNotificationService(
         var errored = 0
 
         claimed.forEach { outbox ->
-            // row 단위 격리: 한 row 처리 실패가 같은 batch 의 다른 row 처리를 막지 않게 한다.
-            // 예외가 던져진 row 는 IN_PROGRESS 로 남고, lease 만료 후 batch reclaim 이 PENDING 으로 복귀시킨다.
-            // 외부 발송이 이미 성공한 뒤 영속화가 실패하면 reclaim 후 재시도되어 중복 발송 가능 — at-least-once 의 본질.
+            // row 단위 격리: 한 row 처리 실패가 같은 batch 의 다른 row 까지 막지 않도록.
+            // 예외 던진 row 는 IN_PROGRESS 로 남고, lease 만료 뒤 batch reclaim 이 PENDING 으로 되돌린다.
+            // 외부 발송이 성공한 뒤 영속화가 실패하면 reclaim 후 재시도되어 중복 발송될 수 있다 — at-least-once 의 본질.
             try {
                 val notification = notificationRepository.findById(outbox.notificationId)
                     ?: throw NotificationDataInconsistencyException(
-                        "outbox(id=${outbox.id}) 가 가리키는 notification(id=${outbox.notificationId}) 가 존재하지 않음",
+                        "outbox(id=${outbox.id}) 가 가리키는 notification(id=${outbox.notificationId}) 가 없음",
                     )
 
                 val sendResult = trySend(notification)
@@ -86,12 +86,12 @@ class DispatchNotificationService(
                 }
             } catch (ex: Exception) {
                 // 분류:
-                //  - OptimisticLockingFailureException: lease 만료 후 부활한 stale write — 정상 격리, 중복 발송 가능
+                //  - OptimisticLockingFailureException: lease 만료 후 부활한 stale write — 정상 격리, 중복 발송 가능성
                 //  - NotificationDataInconsistencyException: outbox-notification 매핑 깨짐 — 운영 alert 대상
-                //  - 기타 DB/IO 예외: lease 만료 후 reclaim 으로 자동 복구
+                //  - 그 외 DB/IO 예외: lease 만료 후 reclaim 으로 자동 복구
                 errored++
                 log.error(
-                    "dispatch errored: outboxId={}, notificationId={}, attempt={}. lease 만료 후 reclaim 대상.",
+                    "dispatch errored: outboxId={}, notificationId={}, attempt={}. lease 만료되면 reclaim 으로 복구된다.",
                     outbox.id,
                     outbox.notificationId,
                     outbox.attemptCount,
@@ -100,7 +100,7 @@ class DispatchNotificationService(
             }
         }
 
-        // claimed = succeeded + failed + errored 가 항상 성립해야 한다 (운영 invariant)
+        // claimed = succeeded + failed + errored 는 항상 성립해야 하는 불변식.
         check(claimed.size == succeeded + failed + errored) {
             "dispatch counter mismatch: claimed=${claimed.size}, succeeded=$succeeded, failed=$failed, errored=$errored"
         }
@@ -139,7 +139,7 @@ class DispatchNotificationService(
             )
 
     private fun applyResult(outbox: NotificationOutbox, notification: Notification, result: EmailSendResult): Outcome =
-        // 콜백이 항상 non-null Outcome 반환하므로 `!!` 안전. 실패 시 콜백 안에서 예외가 던져짐 (외부 try/catch 가 처리)
+        // 콜백이 항상 non-null Outcome 을 반환하므로 `!!` 가 안전. 실패는 콜백 안에서 예외로 던져진다 (바깥 try/catch 처리)
         transactionTemplate.execute { _ ->
             val now = Instant.now(clock)
             when (result) {
@@ -186,8 +186,8 @@ class DispatchNotificationService(
     }
 
     private fun applyPermanentFailure(outbox: NotificationOutbox, notification: Notification, reason: String, now: Instant): Outcome {
-        // 영구 실패는 재시도하지 않고 즉시 DEAD 격리. attempt_count 는 도메인 메서드가 +1 만 하여
-        // 실제 시도 횟수를 보존한다 (한도 점프 안 함). 한도 소진 vs 영구 실패 구분은 history.reason.
+        // 영구 실패는 재시도하지 않고 즉시 DEAD 격리. attempt_count 는 도메인 메서드가 +1 만 해서
+        // 실제 시도 횟수를 그대로 둔다 (한도까지 건너뛰지 않는다). 한도 소진과 영구 실패의 구분은 history.reason 으로.
         outboxPublisher.update(outbox.markFailedPermanent(reason, now))
         quarantine(notification, HistoryReason.PERMANENT_FAILURE, reason, now)
         return Outcome.FAILED_DEAD

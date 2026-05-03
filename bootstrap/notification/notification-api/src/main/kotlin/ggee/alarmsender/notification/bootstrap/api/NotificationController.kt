@@ -36,8 +36,8 @@ class NotificationController(
     /**
      * POST /api/v1/notifications
      * Idempotency-Key 헤더로 클라이언트 재시도 안전.
-     * 자연 키(recipient + type + ref) 가 중복인 경우에도 기존 알림을 그대로 반환.
-     * 동시성 race 처리는 SendNotificationUseCase 내부에서 책임짐 (DB UNIQUE → 재조회).
+     * 자연 키 (recipient + type + ref) 가 중복이어도 기존 알림을 그대로 반환한다.
+     * 동시 race 는 SendNotificationUseCase 안에서 처리한다 (DB UNIQUE → 재조회).
      */
     @PostMapping
     fun create(
@@ -102,12 +102,12 @@ class NotificationController(
 
     /**
      * POST /api/v1/notifications/{id}/retry
-     * DEAD_LETTER 격리된 알림을 운영자 의지로 재시도.
+     * DEAD_LETTER 격리된 알림을 운영자가 직접 재시도시킨다.
      * attempt_count 가 0 으로 리셋되어 다시 5회까지 자동 재시도된다.
      *
      *  - 권한: **OPERATOR 만 가능** (`X-User-Role: OPERATOR` 헤더 필요).
      *          일반 USER 는 본인 알림이라도 직접 재시도 불가 → 403 Forbidden (OPERATOR_ONLY).
-     *  - 상태: DEAD_LETTER 가 아닌 알림에 호출 시 409 Conflict (도메인 상태 전제 위반).
+     *  - 상태: DEAD_LETTER 가 아닌 알림에 호출하면 409 Conflict (상태 전제 위반).
      */
     @PostMapping("/{id}/retry")
     fun retry(

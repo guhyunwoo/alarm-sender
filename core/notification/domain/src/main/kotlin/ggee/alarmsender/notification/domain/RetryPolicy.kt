@@ -4,7 +4,7 @@ import java.time.Duration
 import java.time.Instant
 
 /**
- * 재시도 백오프 정책. 도메인의 외부 협력자가 아닌 정책 그 자체이므로 도메인에서 인터페이스로 정의한다.
+ * 재시도 백오프 정책. 외부 의존이 아니라 정책 자체이므로 도메인에 인터페이스를 둔다.
  */
 interface RetryPolicy {
     val maxAttempts: Int

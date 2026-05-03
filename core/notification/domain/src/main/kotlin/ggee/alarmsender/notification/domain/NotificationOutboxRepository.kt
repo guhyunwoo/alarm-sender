@@ -11,9 +11,9 @@ interface NotificationOutboxRepository {
     fun findByNotificationId(notificationId: Long): NotificationOutbox?
 
     /**
-     * SKIP LOCKED 기반 안전 폴링 + claim. PENDING row 를 IN_PROGRESS 로 전이시키며 잠근다.
+     * SKIP LOCKED 폴링으로 PENDING row 를 잠그고 IN_PROGRESS 로 전이시킨다.
      *
-     * @return 잠금에 성공해 IN_PROGRESS 로 전이된 row 들의 도메인 표현
+     * @return 잠금 성공해 IN_PROGRESS 로 넘어간 row 들
      */
     fun claimBatch(
         workerId: String,
@@ -23,7 +23,7 @@ interface NotificationOutboxRepository {
     ): List<NotificationOutbox>
 
     /**
-     * lease 가 만료된 IN_PROGRESS row 조회. 배치가 reclaim 대상으로 사용한다.
+     * lease 만료된 IN_PROGRESS row. 배치가 reclaim 대상으로 쓴다.
      */
     fun findExpired(now: Instant, limit: Int): List<NotificationOutbox>
 

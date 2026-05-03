@@ -48,9 +48,9 @@ class NotificationOutboxEntity(
     var updatedAt: Instant,
 
     /**
-     * 낙관적 락 버전. lease 만료 reclaim 후 죽은 줄 알았던 워커가 살아나 stale write 를 시도하면
-     * Hibernate 가 ObjectOptimisticLockingFailureException 을 던져 덮어쓰기를 막는다.
-     * (워커 측의 try/catch 가 이를 받아 row 격리 처리)
+     * 낙관적 락 버전. lease 만료로 reclaim 된 뒤 죽은 줄 알았던 워커가 살아나 stale write 를 시도하면
+     * Hibernate 가 ObjectOptimisticLockingFailureException 을 던져서 덮어쓰기를 막는다.
+     * (워커 try/catch 가 받아서 row 격리 처리한다)
      */
     @Version
     @Column(nullable = false)

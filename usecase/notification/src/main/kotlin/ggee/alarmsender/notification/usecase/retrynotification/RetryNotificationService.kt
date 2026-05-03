@@ -17,14 +17,14 @@ import java.time.Clock
 import java.time.Instant
 
 /**
- * 운영자(OPERATOR) 가 DEAD_LETTER 격리된 알림을 명시적으로 재시도하는 흐름.
+ * 운영자(OPERATOR) 가 DEAD_LETTER 격리된 알림을 직접 재시도시키는 흐름.
  *
- * 권한 모델:
- *  - 본인 여부와 무관하게 OPERATOR 만 가능. 일반 USER 는 본인 알림이라도 직접 재시도할 수 없다.
- *  - 권한 검사는 use case 책임 (다른 진입점에서도 일관 보장).
+ * 권한:
+ *  - 본인 여부와 무관하게 OPERATOR 만 가능. 일반 USER 는 본인 알림이라도 직접 재시도 불가.
+ *  - 권한 검사는 use case 가 한다 (다른 진입점이 생겨도 같은 검사가 적용되도록).
  *
  * 트랜잭션:
- *  - notification 갱신 + outbox 갱신 + history 적재가 단일 트랜잭션 (all-or-nothing).
+ *  - notification 갱신 + outbox 갱신 + history 적재 — 단일 트랜잭션 (all-or-nothing).
  *  - 트랜잭션 안에서 외부 호출 없음.
  */
 @Service
@@ -49,12 +49,12 @@ class RetryNotificationService(
         // 3. outbox row 매핑 검증
         val outbox = outboxPublisher.findByNotificationId(notification.requireId())
             ?: throw NotificationDataInconsistencyException(
-                "notification(id=${notification.requireId()}) 의 outbox row 가 존재하지 않음",
+                "notification(id=${notification.requireId()}) 에 매핑되는 outbox row 가 없음",
             )
 
         val now = Instant.now(clock)
 
-        // 4. 도메인 객체가 상태 전제 검증 — DEAD_LETTER 가 아니면 IllegalStateException
+        // 4. 상태 전제는 도메인 객체에서 검증 — DEAD_LETTER 가 아니면 IllegalStateException
         val resetNotification = notification.resetForManualRetry()
         val resetOutbox = outbox.manualRetry(now)
 
@@ -67,7 +67,7 @@ class RetryNotificationService(
                 to = NotificationStatus.PENDING,
                 reason = HistoryReason.MANUAL_RETRY,
                 now = now,
-                detail = "수동 재시도 by operator(${command.requesterId})",
+                detail = "operator(${command.requesterId}) 의 수동 재시도",
             ),
         )
         return resetNotification

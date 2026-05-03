@@ -5,9 +5,8 @@ import java.time.Instant
 
 /**
  * 비동기 발송 처리 큐 row.
- *
- * 워커가 `claim` → 발송 → `markSucceeded` / `markFailedTransient` 흐름으로 진행한다.
- * 모든 상태 전이 규칙은 이 객체가 책임진다.
+ * 워커가 claim → 발송 → markSucceeded / markFailedTransient 순서로 흘려보낸다.
+ * 상태 전이 규칙은 이 객체가 직접 가진다.
  */
 data class NotificationOutbox(
     val id: Long? = null,
@@ -21,14 +20,14 @@ data class NotificationOutbox(
     val createdAt: Instant,
     val updatedAt: Instant,
     /**
-     * 낙관적 락 버전. 영속 계층이 관리하며 도메인 메서드는 그대로 전파한다.
-     * stale write (lease 만료 후 죽은 워커 부활) 차단 토큰.
+     * 낙관적 락 버전. 영속 계층이 관리하고 도메인 메서드는 그대로 들고 다닌다.
+     * lease 만료 후 죽은 줄 알았던 워커가 부활해도 stale write 를 막는 토큰.
      */
     val version: Long = 0L,
 ) {
     fun claim(workerId: String, now: Instant, leaseDuration: Duration): NotificationOutbox {
-        require(status == OutboxStatus.PENDING) { "PENDING 이 아닌 row 를 claim 할 수 없다 (현재: $status)" }
-        require(!availableAt.isAfter(now)) { "availableAt($availableAt) 이 아직 도래하지 않았다" }
+        require(status == OutboxStatus.PENDING) { "PENDING 만 claim 가능 (현재: $status)" }
+        require(!availableAt.isAfter(now)) { "availableAt($availableAt) 이 아직 안 됐다 (now=$now)" }
         return copy(
             status = OutboxStatus.IN_PROGRESS,
             leaseOwner = workerId,
@@ -38,7 +37,7 @@ data class NotificationOutbox(
     }
 
     fun markSucceeded(now: Instant): NotificationOutbox {
-        require(status == OutboxStatus.IN_PROGRESS) { "IN_PROGRESS 가 아닌 row 를 success 처리 불가 (현재: $status)" }
+        require(status == OutboxStatus.IN_PROGRESS) { "IN_PROGRESS 만 success 처리 가능 (현재: $status)" }
         return copy(
             status = OutboxStatus.DONE,
             leaseOwner = null,
@@ -49,12 +48,12 @@ data class NotificationOutbox(
     }
 
     /**
-     * 영구 실패. 첫 시도라도 즉시 DEAD 격리. attemptCount 는 실제 시도 횟수 그대로 유지하여
-     * 운영 추적성을 보존한다 (한도 소진 vs 영구 실패 구분은 history.reason 으로).
+     * 영구 실패. 첫 시도라도 즉시 DEAD 격리. attemptCount 는 실제 시도 횟수 그대로 둬서
+     * 운영 추적용으로 남긴다 (한도 소진과 영구 실패의 구분은 history.reason 으로).
      */
     fun markFailedPermanent(error: String, now: Instant): NotificationOutbox {
         require(status == OutboxStatus.IN_PROGRESS) {
-            "IN_PROGRESS 가 아닌 row 는 permanent failure 처리 불가 (현재: $status)"
+            "IN_PROGRESS 만 permanent failure 처리 가능 (현재: $status)"
         }
         return copy(
             status = OutboxStatus.DEAD,
@@ -67,10 +66,10 @@ data class NotificationOutbox(
     }
 
     /**
-     * 일시 실패. 정책에 따라 재시도 일정으로 복귀하거나 한도 초과 시 DEAD 격리.
+     * 일시 실패. 정책에 따라 재시도 일정으로 되돌아가거나 한도 초과 시 DEAD 격리.
      */
     fun markFailedTransient(error: String, now: Instant, retryPolicy: RetryPolicy): NotificationOutbox {
-        require(status == OutboxStatus.IN_PROGRESS) { "IN_PROGRESS 가 아닌 row 를 failure 처리 불가 (현재: $status)" }
+        require(status == OutboxStatus.IN_PROGRESS) { "IN_PROGRESS 만 failure 처리 가능 (현재: $status)" }
         val nextAttempt = attemptCount + 1
         return if (retryPolicy.isExhausted(nextAttempt)) {
             copy(
@@ -95,13 +94,13 @@ data class NotificationOutbox(
     }
 
     /**
-     * lease 만료 시 다른 워커 또는 배치가 PENDING 으로 복귀시킨다.
-     * 정상 종료가 아닌 워커 죽음·GC pause 등을 신호 없이 처리하는 경로.
+     * lease 만료 시 다른 워커나 배치가 PENDING 으로 되돌린다.
+     * 워커가 정상 종료 신호 없이 죽거나 GC pause 에 빠진 경우의 복구 경로.
      */
     fun reclaim(now: Instant): NotificationOutbox {
-        require(status == OutboxStatus.IN_PROGRESS) { "IN_PROGRESS 가 아닌 row 는 reclaim 불가 (현재: $status)" }
+        require(status == OutboxStatus.IN_PROGRESS) { "IN_PROGRESS 만 reclaim 가능 (현재: $status)" }
         require(leaseExpiresAt != null && leaseExpiresAt.isBefore(now)) {
-            "lease 가 아직 만료되지 않았다 (lease=$leaseExpiresAt, now=$now)"
+            "lease 가 아직 살아있다 (lease=$leaseExpiresAt, now=$now)"
         }
         return copy(
             status = OutboxStatus.PENDING,
@@ -112,10 +111,10 @@ data class NotificationOutbox(
     }
 
     /**
-     * 운영자 명시적 의지의 수동 재시도. attemptCount 를 0 으로 리셋.
+     * 운영자 명시 재시도. attemptCount 를 0 으로 리셋한다.
      */
     fun manualRetry(now: Instant): NotificationOutbox {
-        require(status == OutboxStatus.DEAD) { "DEAD 가 아닌 row 는 수동 재시도 불가 (현재: $status)" }
+        require(status == OutboxStatus.DEAD) { "DEAD 만 수동 재시도 가능 (현재: $status)" }
         return copy(
             status = OutboxStatus.PENDING,
             attemptCount = 0,
@@ -125,7 +124,7 @@ data class NotificationOutbox(
         )
     }
 
-    fun requireId(): Long = id ?: error("영속화되지 않은 NotificationOutbox")
+    fun requireId(): Long = id ?: error("아직 영속화되지 않은 NotificationOutbox")
 
     companion object {
         fun create(notificationId: Long, now: Instant, availableAt: Instant = now): NotificationOutbox =

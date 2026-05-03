@@ -24,18 +24,18 @@ import java.time.Instant
  *  3. 없으면 신규 적재
  *
  * 동시성 race: 두 클라이언트가 동시에 같은 키로 1단계를 미스하고 둘 다 INSERT 를 시도하면,
- * DB UNIQUE 제약이 마지막 보호선으로 동작해 [DataIntegrityViolationException] 발생.
- * 본 서비스는 이를 use case 내부에서 catch 하여 재조회 후 기존 알림을 반환한다.
- * 컨트롤러는 충돌 처리 책임을 갖지 않는다.
+ * DB UNIQUE 제약이 마지막 보호선으로 동작해 [DataIntegrityViolationException] 가 던져진다.
+ * 이 서비스가 use case 안에서 catch 하고 재조회해서 기존 알림을 반환한다.
+ * 컨트롤러는 충돌 처리에 관여하지 않는다.
  *
- * **호출 계약 (중요)**: 본 서비스는 **트랜잭션 밖에서 호출되어야** 한다.
- * 이유는 1차/2차 read 가 트랜잭션 밖에서 실행되어야 다른 트랜잭션의 commit 결과를 볼 수 있기 때문.
- * 만약 outer @Transactional 메서드에서 호출하면 read 가 outer snapshot 에 묶여 race-fallback
+ * **호출 계약 (중요)**: 이 서비스는 **트랜잭션 밖에서 호출돼야** 한다.
+ * 1차/2차 read 가 트랜잭션 밖이어야 다른 트랜잭션의 commit 결과를 볼 수 있기 때문이다.
+ * outer @Transactional 메서드에서 호출하면 read 가 outer snapshot 에 묶여 race-fallback
  * read 가 null 을 받게 된다 (특히 REPEATABLE_READ 격리). 호출 계약 위반은 프로그래머 오류.
  *
  * 트랜잭션 분리: 1차 read 는 트랜잭션 밖 (멱등 hit 이 다수, read-only). 신규 INSERT 만 새 트랜잭션
- * (REQUIRES_NEW). race-fallback read 는 INSERT 트랜잭션이 롤백된 뒤이므로 다시 트랜잭션 밖에서 수행 —
- * 이렇게 해야 다른 커밋된 트랜잭션의 결과를 볼 수 있다.
+ * (REQUIRES_NEW). race-fallback read 는 INSERT 트랜잭션이 롤백된 뒤라 다시 트랜잭션 밖에서 돌린다 —
+ * 이렇게 해야 다른 커밋된 트랜잭션 결과를 본다.
  */
 @Service
 class SendNotificationService(

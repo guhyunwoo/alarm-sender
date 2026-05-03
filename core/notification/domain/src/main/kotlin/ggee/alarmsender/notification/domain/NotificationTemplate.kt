@@ -27,7 +27,7 @@ data class NotificationTemplate(
             payload[key]?.toString().orEmpty()
         }
 
-    fun requireId(): Long = id ?: error("영속화되지 않은 NotificationTemplate")
+    fun requireId(): Long = id ?: error("아직 영속화되지 않은 NotificationTemplate")
 
     companion object {
         private val PLACEHOLDER = Regex("""\{\{\s*([A-Za-z0-9_.-]+)\s*}}""")

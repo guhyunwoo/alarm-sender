@@ -43,8 +43,8 @@ class GlobalExceptionHandler {
         ResponseEntity.status(HttpStatus.FORBIDDEN).body(ErrorResponse(e.code, e.message ?: ""))
 
     /**
-     * outbox ↔ notification 일대일 관계 깨짐 등 데이터 불일치는 클라이언트 잘못이 아님 → 500.
-     * 다만 메시지에 내부 ID 가 들어가 있어 운영자 추적이 가능하므로 그대로 노출.
+     * outbox ↔ notification 매핑 깨짐 같은 데이터 불일치는 클라이언트 잘못이 아니라 500.
+     * 다만 메시지에 내부 ID 가 들어가 있어 운영자가 추적 가능하므로 그대로 노출한다.
      */
     @ExceptionHandler(NotificationDataInconsistencyException::class)
     fun dataInconsistency(e: NotificationDataInconsistencyException): ResponseEntity<ErrorResponse> {
@@ -69,34 +69,34 @@ class GlobalExceptionHandler {
             .body(ErrorResponse("BAD_REQUEST", e.message ?: "요청 형식이 올바르지 않습니다"))
 
     /**
-     * Kotlin require / IllegalArgumentException — Command DTO init 블록 등 저수준 검증 용도.
+     * Kotlin require / IllegalArgumentException — Command DTO init 블록 같은 저수준 검증.
      */
     @ExceptionHandler(IllegalArgumentException::class)
     fun illegalArgument(e: IllegalArgumentException): ResponseEntity<ErrorResponse> =
         ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse("BAD_REQUEST", e.message ?: ""))
 
     /**
-     * 도메인 require 위반 (예: DEAD_LETTER 가 아닌 알림에 수동 재시도 시도) 은 IllegalStateException.
-     * 의미상 "현재 상태에서 동작 불가" → 409 Conflict 가 정확.
+     * 도메인 상태 전제 위반은 IllegalStateException — 예: DEAD_LETTER 가 아닌 알림에 재시도 호출.
+     * "지금 상태에서는 못 한다" 는 뜻이라 409 Conflict 가 맞다.
      */
     @ExceptionHandler(IllegalStateException::class)
     fun illegalState(e: IllegalStateException): ResponseEntity<ErrorResponse> =
         ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse("INVALID_STATE", e.message ?: ""))
 
     /**
-     * @Version 으로 인한 stale write 차단. lease 만료 reclaim 후 죽은 워커 부활 등.
-     * 클라이언트 입장에서는 retry 하면 해결됨.
+     * @Version 으로 stale write 차단. lease 만료 reclaim 후 죽은 줄 알았던 워커가 살아나는 경우 등.
+     * 클라이언트는 그냥 retry 하면 풀린다.
      */
     @ExceptionHandler(OptimisticLockingFailureException::class)
     fun optimisticLock(e: OptimisticLockingFailureException): ResponseEntity<ErrorResponse> {
-        log.warn("optimistic lock conflict (다른 트랜잭션이 row 를 갱신)", e)
+        log.warn("optimistic lock conflict (다른 트랜잭션이 같은 row 를 먼저 갱신함)", e)
         return ResponseEntity.status(HttpStatus.CONFLICT)
             .body(ErrorResponse("OPTIMISTIC_LOCK_CONFLICT", "다른 처리와 충돌이 발생했습니다. 잠시 후 다시 시도해 주세요."))
     }
 
     /**
      * 마지막 안전망. 응답 body 에는 내부 메시지를 노출하지 않는다 (스택 / SQL / 경로 누출 방지).
-     * 디버깅은 서버 로그(이미 ERROR 로 stack 출력) 와 trace 로 진행.
+     * 디버깅은 서버 로그 (이미 ERROR 로 stack 찍힘) 와 trace 로.
      */
     @ExceptionHandler(Exception::class)
     fun unexpected(e: Exception): ResponseEntity<ErrorResponse> {
