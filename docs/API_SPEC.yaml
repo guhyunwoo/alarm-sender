@@ -86,6 +86,27 @@ paths:
         '403': { description: 본인 외 사용자 시도, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '404': { description: 존재하지 않음, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
 
+  /api/v1/notifications/{id}/retry:
+    post:
+      summary: DEAD_LETTER 알림 수동 재시도
+      description: |
+        DEAD_LETTER 격리된 알림을 본인 의지로 재시도. attempt_count 가 0 으로 리셋되어
+        다시 5회까지 자동 재시도됨. DEAD_LETTER 가 아닌 알림에 호출 시 400.
+      parameters:
+        - in: header
+          name: X-User-Id
+          required: true
+          schema: { type: string }
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200': { description: PENDING 으로 복귀, content: { application/json: { schema: { $ref: '#/components/schemas/NotificationResponse' } } } }
+        '400': { description: DEAD_LETTER 가 아닌 상태에서 호출, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '403': { description: 본인 외 사용자 시도, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '404': { description: 존재하지 않는 알림, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+
   /api/v1/notifications/{id}/read:
     post:
       summary: 읽음 처리 (멀티 디바이스 멱등)

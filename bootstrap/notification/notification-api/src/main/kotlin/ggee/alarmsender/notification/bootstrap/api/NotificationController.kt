@@ -7,6 +7,8 @@ import ggee.alarmsender.notification.usecase.listnotifications.ListNotifications
 import ggee.alarmsender.notification.usecase.listnotifications.ListNotificationsUseCase
 import ggee.alarmsender.notification.usecase.readnotification.ReadNotificationCommand
 import ggee.alarmsender.notification.usecase.readnotification.ReadNotificationUseCase
+import ggee.alarmsender.notification.usecase.retrynotification.RetryNotificationCommand
+import ggee.alarmsender.notification.usecase.retrynotification.RetryNotificationUseCase
 import ggee.alarmsender.notification.usecase.sendnotification.SendNotificationCommand
 import ggee.alarmsender.notification.usecase.sendnotification.SendNotificationUseCase
 import jakarta.validation.Valid
@@ -29,6 +31,7 @@ class NotificationController(
     private val listUseCase: ListNotificationsUseCase,
     private val getUseCase: GetNotificationUseCase,
     private val readUseCase: ReadNotificationUseCase,
+    private val retryUseCase: RetryNotificationUseCase,
 ) {
 
     /**
@@ -100,4 +103,16 @@ class NotificationController(
             newlyRead = r.newlyRead,
         )
     }
+
+    /**
+     * POST /api/v1/notifications/{id}/retry
+     * DEAD_LETTER 격리된 알림을 본인 의지로 재시도. attempt_count 가 0 으로 리셋되어 다시 5회까지 자동 재시도된다.
+     * DEAD_LETTER 가 아닌 알림에 호출 시 400 (도메인 불변식 위반).
+     */
+    @PostMapping("/{id}/retry")
+    fun retry(
+        @RequestHeader("X-User-Id") requesterId: String,
+        @PathVariable id: Long,
+    ): NotificationResponse =
+        NotificationResponse.from(retryUseCase.execute(RetryNotificationCommand(id, requesterId)))
 }
