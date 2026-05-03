@@ -45,12 +45,12 @@ class NotificationControllerTest @Autowired constructor(
 
     private val createBody = """
         {
-          "recipientId": "u1",
+          "recipient_id": "u1",
           "type": "ENROLL_COMPLETED",
           "channel": "EMAIL",
           "payload": {"title": "수강 신청 완료"},
-          "refType": "ENROLLMENT",
-          "refId": "100"
+          "ref_type": "ENROLLMENT",
+          "ref_id": "100"
         }
     """.trimIndent()
 
@@ -89,16 +89,16 @@ class NotificationControllerTest @Autowired constructor(
     }
 
     @Test
-    fun `read — 첫 호출 newlyRead=true, 두 번째 false (멀티 디바이스 멱등)`() {
+    fun `read — 첫 호출 newly_read=true, 두 번째 false (멀티 디바이스 멱등)`() {
         val created = rest.postForEntity("/api/v1/notifications", HttpEntity(createBody, headers("u1", "r-1")), Map::class.java)
         val id = created.body!!["id"]
 
         val first = rest.postForEntity("/api/v1/notifications/$id/read", HttpEntity<Void>(headers("u1")), Map::class.java)
         assertEquals(HttpStatus.OK, first.statusCode)
-        assertEquals(true, first.body!!["newlyRead"])
+        assertEquals(true, first.body!!["newly_read"])
 
         val second = rest.postForEntity("/api/v1/notifications/$id/read", HttpEntity<Void>(headers("u1")), Map::class.java)
-        assertEquals(false, second.body!!["newlyRead"])
+        assertEquals(false, second.body!!["newly_read"])
     }
 
     @Test
@@ -109,7 +109,7 @@ class NotificationControllerTest @Autowired constructor(
             Map::class.java,
         )
         val resp = rest.exchange(
-            "/api/v1/notifications?recipientId=u1",
+            "/api/v1/notifications?recipient_id=u1",
             HttpMethod.GET,
             HttpEntity<Void>(headers("u2")),
             Map::class.java,
@@ -161,7 +161,7 @@ class NotificationControllerTest @Autowired constructor(
     fun `잘못된 enum 요청 본문은 400 BAD_REQUEST 로 응답한다`() {
         val body = """
             {
-              "recipientId": "u1",
+              "recipient_id": "u1",
               "type": "UNKNOWN_TYPE",
               "channel": "EMAIL",
               "payload": {}
@@ -179,16 +179,16 @@ class NotificationControllerTest @Autowired constructor(
     }
 
     @Test
-    fun `scheduledAt 이 있는 발송 요청은 예약 시각을 응답에 포함한다`() {
+    fun `scheduled_at 이 있는 발송 요청은 예약 시각을 응답에 포함한다`() {
         val body = """
             {
-              "recipientId": "u1",
+              "recipient_id": "u1",
               "type": "ENROLL_COMPLETED",
               "channel": "EMAIL",
               "payload": {},
-              "refType": "ENROLLMENT",
-              "refId": "scheduled-1",
-              "scheduledAt": "2026-05-03T12:00:00Z"
+              "ref_type": "ENROLLMENT",
+              "ref_id": "scheduled-1",
+              "scheduled_at": "2026-05-03T12:00:00Z"
             }
         """.trimIndent()
 
@@ -199,15 +199,15 @@ class NotificationControllerTest @Autowired constructor(
         )
 
         assertEquals(HttpStatus.CREATED, resp.statusCode)
-        assertEquals("2026-05-03T12:00:00Z", resp.body!!["scheduledAt"])
+        assertEquals("2026-05-03T12:00:00Z", resp.body!!["scheduled_at"])
     }
 
     @Test
     fun `OPERATOR 는 템플릿을 수정하고 조회할 수 있다`() {
         val body = """
             {
-              "subjectTemplate": "변경된 제목 {{courseName}}",
-              "bodyTemplate": "{{courseName}} 변경된 본문"
+              "subject_template": "변경된 제목 {{course_name}}",
+              "body_template": "{{course_name}} 변경된 본문"
             }
         """.trimIndent()
 
@@ -219,7 +219,7 @@ class NotificationControllerTest @Autowired constructor(
         )
 
         assertEquals(HttpStatus.OK, update.statusCode)
-        assertEquals("변경된 제목 {{courseName}}", update.body!!["subjectTemplate"])
+        assertEquals("변경된 제목 {{course_name}}", update.body!!["subject_template"])
 
         val get = rest.exchange(
             "/api/v1/notification-templates/ENROLL_COMPLETED/EMAIL",
@@ -227,15 +227,15 @@ class NotificationControllerTest @Autowired constructor(
             HttpEntity<Void>(headers("u1")),
             Map::class.java,
         )
-        assertEquals("변경된 제목 {{courseName}}", get.body!!["subjectTemplate"])
+        assertEquals("변경된 제목 {{course_name}}", get.body!!["subject_template"])
     }
 
     @Test
     fun `USER 는 템플릿을 수정할 수 없다`() {
         val body = """
             {
-              "subjectTemplate": "제목",
-              "bodyTemplate": "본문"
+              "subject_template": "제목",
+              "body_template": "본문"
             }
         """.trimIndent()
 
@@ -267,14 +267,14 @@ class NotificationControllerTest @Autowired constructor(
     }
 
     @Test
-    fun `목록 조회 — 본인 알림 + 최신순 + unreadOnly 필터`() {
+    fun `목록 조회 — 본인 알림 + 최신순 + unread_only 필터`() {
         rest.postForEntity("/api/v1/notifications",
-            HttpEntity("""{"recipientId":"u1","type":"ENROLL_COMPLETED","channel":"EMAIL","payload":{},"refType":"E","refId":"1"}""", headers("u1", "l1")), Map::class.java)
+            HttpEntity("""{"recipient_id":"u1","type":"ENROLL_COMPLETED","channel":"EMAIL","payload":{},"ref_type":"E","ref_id":"1"}""", headers("u1", "l1")), Map::class.java)
         rest.postForEntity("/api/v1/notifications",
-            HttpEntity("""{"recipientId":"u1","type":"PAYMENT_CONFIRMED","channel":"EMAIL","payload":{},"refType":"E","refId":"2"}""", headers("u1", "l2")), Map::class.java)
+            HttpEntity("""{"recipient_id":"u1","type":"PAYMENT_CONFIRMED","channel":"EMAIL","payload":{},"ref_type":"E","ref_id":"2"}""", headers("u1", "l2")), Map::class.java)
 
         val list = rest.exchange(
-            "/api/v1/notifications?unreadOnly=true&limit=10",
+            "/api/v1/notifications?unread_only=true&limit=10",
             HttpMethod.GET,
             HttpEntity<Void>(headers("u1")),
             List::class.java,

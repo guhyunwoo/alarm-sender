@@ -69,8 +69,8 @@ class NotificationController(
     @GetMapping
     fun list(
         @RequestHeader("X-User-Id") requesterId: String,
-        @RequestParam(required = false) recipientId: String?,
-        @RequestParam(defaultValue = "false") unreadOnly: Boolean,
+        @RequestParam(name = "recipient_id", required = false) recipientId: String?,
+        @RequestParam(name = "unread_only", defaultValue = "false") unreadOnly: Boolean,
         @RequestParam(defaultValue = "20") limit: Int,
         @RequestParam(defaultValue = "0") offset: Int,
     ): List<NotificationResponse> {

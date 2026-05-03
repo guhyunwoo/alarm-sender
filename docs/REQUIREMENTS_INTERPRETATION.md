@@ -105,7 +105,7 @@
 **해석**:
 
 - `read_at IS NULL` 일 때만 `now()` 로 set, 이후 호출은 no-op.
-- 멀티 디바이스에서 동시에 read 호출이 들어와도 가장 먼저 도착한 호출의 시각이 유지된다 (이미 set 된 readAt 을 덮어쓰지 않음).
+- 멀티 디바이스에서 동시에 read 호출이 들어와도 가장 먼저 도착한 호출의 시각이 유지된다 (이미 set 된 read_at 을 덮어쓰지 않음).
 - 본인이 아닌 사용자의 read 시도는 403.
 
 구현: 도메인 객체의 `markAsRead()` 는 객체 단위 멱등성을 보장하고, 실제 동시성은 DB 조건부 갱신(`read_at IS NULL`)으로 보장한다.
@@ -114,7 +114,7 @@
 
 ## 10. "발송 스케줄링"
 
-**해석**: 알림 요청에 `scheduledAt` 이 있으면 해당 시각부터 발송 대상이 된다.
+**해석**: 알림 요청에 `scheduled_at` 이 있으면 해당 시각부터 발송 대상이 된다.
 
 - `notification.scheduled_at` 에 예약 시각을 보관한다.
 - `notification_outbox.available_at` 을 예약 시각으로 설정한다.
@@ -153,6 +153,6 @@
 | 외부 호출이 일시 실패하면? | 지수 백오프로 자동 재시도 | 1m → 2m → 4m → 8m → 16m, 최대 5회 |
 | 재시도 한도 초과되면? | DEAD_LETTER 격리, 운영자 가시화 | history EXHAUSTED + 수동 재시도 API |
 | 서버 재시작되면? | 미처리 outbox 자동 재개 | 모든 상태 DB 영속, lease 만료 시 reclaim |
-| 멀티 디바이스에서 동시에 read 누르면? | readAt 한 번만 set | 도메인 객체 멱등성 |
-| 특정 시각에 발송해야 하면? | outbox.available_at 까지 worker claim 지연 | scheduledAt → available_at |
+| 멀티 디바이스에서 동시에 read 누르면? | read_at 한 번만 set | 도메인 객체 멱등성 |
+| 특정 시각에 발송해야 하면? | outbox.available_at 까지 worker claim 지연 | scheduled_at → available_at |
 | 메시지 문구를 바꾸려면? | 운영자 템플릿 수정 API | notification_template |

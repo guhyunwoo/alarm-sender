@@ -14,7 +14,7 @@
    │ SendNotificationUseCase
    │   ┌── 단일 트랜잭션 ──┐
    │   │ INSERT notification │
-   │   │ INSERT notification_outbox (status=PENDING, available_at=scheduledAt 또는 now)
+   │   │ INSERT notification_outbox (status=PENDING, available_at=scheduled_at 또는 now)
    │   │ INSERT notification_history (CREATED)
    │   └────────────────────┘
    │ 201 Created (PENDING) 즉시 ACK
@@ -89,8 +89,8 @@ PENDING ──dispatch success──▶ SENT
 
 | 요청 | notification.scheduled_at | outbox.available_at | 워커 동작 |
 |---|---|---|---|
-| `scheduledAt` 없음 | NULL | now | 즉시 claim 대상 |
-| `scheduledAt` 있음 | 요청 시각 | 요청 시각 | `available_at <= now` 가 될 때까지 대기 |
+| `scheduled_at` 없음 | NULL | now | 즉시 claim 대상 |
+| `scheduled_at` 있음 | 요청 시각 | 요청 시각 | `available_at <= now` 가 될 때까지 대기 |
 
 기존 워커의 polling 조건이 그대로 예약 발송 조건이 되므로, 예약 기능이 재시도/lease 복구 구조와 충돌하지 않는다.
 
@@ -98,7 +98,7 @@ PENDING ──dispatch success──▶ SENT
 
 ## 5. 템플릿 렌더링
 
-`notification_template` 은 `(type, channel)` 별 subject/body template 을 가진다. EMAIL 발송 시 `{{courseName}}`, `{{recipientName}}` 같은 placeholder 를 notification payload 값으로 치환한다.
+`notification_template` 은 `(type, channel)` 별 subject/body template 을 가진다. EMAIL 발송 시 `{{course_name}}`, `{{recipient_name}}` 같은 placeholder 를 notification payload 값으로 치환한다.
 
 템플릿 수정은 운영자 전용 API (`PUT /api/v1/notification-templates/{type}/{channel}`) 로만 가능하다. 템플릿이 없으면 기존 payload 의 `title`/`body` fallback 을 사용해 발송 흐름 자체는 멈추지 않는다.
 
@@ -152,6 +152,6 @@ PENDING ──dispatch success──▶ SENT
 | 일시적 외부 장애 | 지수 백오프 + attempt 누적 | DispatchNotificationServiceTest |
 | 영구적 실패 | 한도 초과 시 DEAD_LETTER 격리 | DispatchNotificationServiceTest |
 | 서버 재시작 | DB 영속화 → 재기동 후 자동 재개 | (런타임 시나리오, 자동 재개는 워커 부팅이 곧 검증) |
-| 멀티 디바이스 동시 read | readAt 한 번만 set | ReadNotificationServiceTest, NotificationControllerTest |
-| 예약 발송 | outbox.available_at 이 scheduledAt 이후일 때만 claim | SendNotificationServiceTest, NotificationControllerTest |
+| 멀티 디바이스 동시 read | read_at 한 번만 set | ReadNotificationServiceTest, NotificationControllerTest |
+| 예약 발송 | outbox.available_at 이 scheduled_at 이후일 때만 claim | SendNotificationServiceTest, NotificationControllerTest |
 | 템플릿 관리/렌더링 | DB 템플릿 + payload placeholder 치환 | ManageNotificationTemplateServiceTest, DispatchNotificationServiceTest |

@@ -89,15 +89,15 @@ class DispatchNotificationServiceTest {
     fun `EMAIL 발송은 타입별 템플릿에 payload 를 치환해 제목과 본문을 만든다`() {
         templates.save(
             NotificationFixtures.template(
-                subjectTemplate = "수강 신청 완료: {{courseName}}",
-                bodyTemplate = "{{recipientName}}님, {{courseName}} 신청이 완료되었습니다.",
+                subjectTemplate = "수강 신청 완료: {{course_name}}",
+                bodyTemplate = "{{recipient_name}}님, {{course_name}} 신청이 완료되었습니다.",
             ),
         )
         val n = notifications.save(
             NotificationFixtures.notification(
                 idempotencyKey = "templated",
                 refId = "templated",
-                payload = mapOf("recipientName" to "홍길동", "courseName" to "Kotlin 입문"),
+                payload = mapOf("recipient_name" to "홍길동", "course_name" to "Kotlin 입문"),
             ),
         )
         outbox.save(NotificationFixtures.outbox(notificationId = n.id!!, availableAt = now))
