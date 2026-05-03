@@ -21,7 +21,7 @@ class GetNotificationServiceTest {
     }
 
     @Test
-    fun `다른 사용자 조회 시 access denied`() {
+    fun `본인 외 사용자가 조회 시 접근 거부 예외 발생`() {
         val saved = repo.save(NotificationFixtures.notification(idempotencyKey = "k1", recipientId = "u1"))
         assertThrows<NotificationAccessDeniedException> {
             sut.execute(GetNotificationQuery(saved.id!!, "u2"))
@@ -29,7 +29,7 @@ class GetNotificationServiceTest {
     }
 
     @Test
-    fun `없는 id 는 NotFound`() {
+    fun `존재하지 않는 id 조회 시 알림 미발견 예외 발생`() {
         assertThrows<NotificationNotFoundException> {
             sut.execute(GetNotificationQuery(999, "u1"))
         }

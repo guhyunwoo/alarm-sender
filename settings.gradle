@@ -17,6 +17,9 @@ include 'usecase:notification'
 // infrastructure (DB, Web 등 기술 설정)
 include 'infrastructure:jpa-postgres'
 
+// library — 도메인 무관 공통 유틸리티
+include 'library:exception'
+
 // platform (외부 서비스 연동)
 include 'platform:email:email-interface'
 include 'platform:email:email-impl'

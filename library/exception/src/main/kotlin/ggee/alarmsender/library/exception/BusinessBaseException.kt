@@ -1,8 +1,11 @@
-package ggee.alarmsender.notification.domain.exception
+package ggee.alarmsender.library.exception
 
 /**
  * 모든 비즈니스 예외의 공통 베이스. 도메인 / 유즈케이스 레이어에서 발생시키는 예외는
  * 반드시 이 클래스를 상속한다.
+ *
+ * 도메인 무관 공통 라이브러리이므로 library/exception 모듈에 둔다.
+ * 새 도메인이 추가될 때 본 클래스만 의존하면 된다.
  *
  *  - `code`: 클라이언트 / 운영자가 식별할 수 있는 안정적인 오류 코드 (열거형 자체에 의미가 묶이지 않도록 String 으로 둔다)
  *  - `message`: 사람이 읽기 위한 설명. 식별자로 의존하지 말 것.

@@ -1,3 +1,4 @@
 // 순수 Kotlin 도메인 모듈 — 외부 기술 의존 없음
 dependencies {
+    api project(':library:exception')
 }

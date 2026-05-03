@@ -48,7 +48,7 @@ class ReadNotificationServiceTest {
     }
 
     @Test
-    fun `다른 사용자가 시도하면 NotificationAccessDeniedException`() {
+    fun `본인 외 사용자가 시도하면 접근 거부 예외 발생`() {
         val saved = notifications.save(NotificationFixtures.notification(idempotencyKey = "k1", recipientId = "u1"))
         assertThrows<NotificationAccessDeniedException> {
             sut.execute(ReadNotificationCommand(saved.id!!, "u2"))
@@ -56,7 +56,7 @@ class ReadNotificationServiceTest {
     }
 
     @Test
-    fun `없는 알림에 read 시 NotificationNotFoundException`() {
+    fun `존재하지 않는 알림 read 시 알림 미발견 예외 발생`() {
         assertThrows<NotificationNotFoundException> {
             sut.execute(ReadNotificationCommand(notificationId = 999, requesterId = "u1"))
         }
