@@ -17,10 +17,10 @@ class NotificationExceptionsTest {
     }
 
     @Test
-    fun `접근 거부 예외는 IllegalStateException 을 상속하고 컨텍스트를 노출한다`() {
+    fun `접근 거부 예외는 SecurityException 을 상속하고 컨텍스트를 노출한다`() {
         val e = NotificationAccessDeniedException(notificationId = 100, requesterId = "u-99")
 
-        assertTrue(e is IllegalStateException)
+        assertTrue(e is SecurityException)
         assertEquals("NOTIFICATION_ACCESS_DENIED", e.code)
         assertEquals(100, e.notificationId)
         assertEquals("u-99", e.requesterId)

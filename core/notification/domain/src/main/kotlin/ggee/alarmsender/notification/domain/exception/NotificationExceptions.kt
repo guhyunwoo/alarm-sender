@@ -22,11 +22,13 @@ class NotificationTemplateNotFoundException(
 
 /**
  * 본인 외 사용자가 알림에 접근하려 할 때 발생.
+ * 권한·인가 실패는 상태 전제 위반(IllegalStateException) 과 의미가 다르므로
+ * JDK 표준의 [SecurityException] 을 상속한다 (handler 매핑은 403 FORBIDDEN).
  */
 class NotificationAccessDeniedException(
     val notificationId: Long,
     val requesterId: String,
-) : IllegalStateException("사용자($requesterId)는 알림(id=$notificationId)에 접근 권한이 없습니다") {
+) : SecurityException("사용자($requesterId)는 알림(id=$notificationId)에 접근 권한이 없습니다") {
     val code: String = "NOTIFICATION_ACCESS_DENIED"
 }
 
@@ -37,7 +39,7 @@ class NotificationAccessDeniedException(
 class RecipientForbiddenException(
     val targetRecipientId: String,
     val requesterId: String,
-) : IllegalStateException("사용자($requesterId)는 ($targetRecipientId)의 알림 목록에 접근 권한이 없습니다") {
+) : SecurityException("사용자($requesterId)는 ($targetRecipientId)의 알림 목록에 접근 권한이 없습니다") {
     val code: String = "RECIPIENT_FORBIDDEN"
 }
 
@@ -58,6 +60,6 @@ class NotificationDataInconsistencyException(
 class OperatorOnlyException(
     val operationName: String,
     val requesterId: String,
-) : IllegalStateException("'$operationName' 은(는) 운영자만 수행할 수 있습니다 (요청자: $requesterId)") {
+) : SecurityException("'$operationName' 은(는) 운영자만 수행할 수 있습니다 (요청자: $requesterId)") {
     val code: String = "OPERATOR_ONLY"
 }

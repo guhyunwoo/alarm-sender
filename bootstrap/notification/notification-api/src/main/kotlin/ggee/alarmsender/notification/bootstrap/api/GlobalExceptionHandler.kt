@@ -78,10 +78,22 @@ class GlobalExceptionHandler {
     /**
      * 도메인 상태 전제 위반은 IllegalStateException — 예: DEAD_LETTER 가 아닌 알림에 재시도 호출.
      * "지금 상태에서는 못 한다" 는 뜻이라 409 Conflict 가 맞다.
+     *
+     * 권한 거부(403) 도메인 예외는 [SecurityException] 계열로 분리되어 있어 여기로 흘러오지 않는다.
+     * 새 IllegalStateException 도메인 예외를 추가할 때도 의미가 "상태 전제 위반"이 맞는지 검토하고,
+     * 다른 의미라면 별도 부모/핸들러로 분리한다.
      */
     @ExceptionHandler(IllegalStateException::class)
     fun illegalState(e: IllegalStateException): ResponseEntity<ErrorResponse> =
         ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse("INVALID_STATE", e.message ?: ""))
+
+    /**
+     * 권한 거부 fallback. 명시 핸들러가 없는 SecurityException 이 흘러와도 500 이 아니라 403 으로 간다.
+     * (구체적인 도메인 권한 예외는 위에서 각각 처리.)
+     */
+    @ExceptionHandler(SecurityException::class)
+    fun securityFallback(e: SecurityException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.FORBIDDEN).body(ErrorResponse("FORBIDDEN", e.message ?: ""))
 
     /**
      * @Version 으로 stale write 차단. lease 만료 reclaim 후 죽은 줄 알았던 워커가 살아나는 경우 등.
