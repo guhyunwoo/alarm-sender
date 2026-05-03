@@ -1,13 +1,13 @@
 package ggee.alarmsender.notification.bootstrap.api
 
-import ggee.alarmsender.notification.usecase.getnotification.port.GetNotificationQuery
-import ggee.alarmsender.notification.usecase.getnotification.port.GetNotificationUseCase
-import ggee.alarmsender.notification.usecase.listnotifications.port.ListNotificationsQuery
-import ggee.alarmsender.notification.usecase.listnotifications.port.ListNotificationsUseCase
-import ggee.alarmsender.notification.usecase.readnotification.port.ReadNotificationCommand
-import ggee.alarmsender.notification.usecase.readnotification.port.ReadNotificationUseCase
-import ggee.alarmsender.notification.usecase.sendnotification.port.SendNotificationCommand
-import ggee.alarmsender.notification.usecase.sendnotification.port.SendNotificationUseCase
+import ggee.alarmsender.notification.usecase.getnotification.GetNotificationQuery
+import ggee.alarmsender.notification.usecase.getnotification.GetNotificationUseCase
+import ggee.alarmsender.notification.usecase.listnotifications.ListNotificationsQuery
+import ggee.alarmsender.notification.usecase.listnotifications.ListNotificationsUseCase
+import ggee.alarmsender.notification.usecase.readnotification.ReadNotificationCommand
+import ggee.alarmsender.notification.usecase.readnotification.ReadNotificationUseCase
+import ggee.alarmsender.notification.usecase.sendnotification.SendNotificationCommand
+import ggee.alarmsender.notification.usecase.sendnotification.SendNotificationUseCase
 import jakarta.validation.Valid
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus

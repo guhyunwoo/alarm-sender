@@ -1,0 +1,16 @@
+// 알림 도메인 use case 통합 모듈.
+// Use case 단위는 패키지로 분리한다 (sendnotification / dispatchnotification / ...).
+// 모듈 단위 의존 규칙은 build.gradle 의 dependencies 가 강제하므로
+// 외부 기술(spring-web, JPA, Jackson 등)이 직접 침투하지 못한다.
+dependencies {
+    api project(':core:notification:domain')
+    implementation project(':platform:email:email-interface')
+
+    implementation 'org.springframework:spring-tx'
+    implementation 'org.springframework:spring-context'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation project(':core:notification:notification-test-fixture')
+    testImplementation project(':core:notification:notification-test-stub')
+    testImplementation project(':platform:email:email-test-stub')
+}

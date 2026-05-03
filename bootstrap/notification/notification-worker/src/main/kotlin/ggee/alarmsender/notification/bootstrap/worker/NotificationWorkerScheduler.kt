@@ -1,7 +1,7 @@
 package ggee.alarmsender.notification.bootstrap.worker
 
-import ggee.alarmsender.notification.usecase.dispatchnotification.port.DispatchNotificationCommand
-import ggee.alarmsender.notification.usecase.dispatchnotification.port.DispatchNotificationUseCase
+import ggee.alarmsender.notification.usecase.dispatchnotification.DispatchNotificationCommand
+import ggee.alarmsender.notification.usecase.dispatchnotification.DispatchNotificationUseCase
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component

@@ -1,7 +1,7 @@
 package ggee.alarmsender.notification.bootstrap.api
 
-import ggee.alarmsender.notification.usecase.getnotification.port.NotificationAccessDeniedException
-import ggee.alarmsender.notification.usecase.getnotification.port.NotificationNotFoundException
+import ggee.alarmsender.notification.usecase.getnotification.NotificationAccessDeniedException
+import ggee.alarmsender.notification.usecase.getnotification.NotificationNotFoundException
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity

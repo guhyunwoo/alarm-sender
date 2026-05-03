@@ -34,7 +34,9 @@
 | 직렬화 | Jackson Module Kotlin |
 | 테스트 | JUnit 5, Spring Boot Test |
 
-> 모듈 구조와 의존 규칙은 [`AGENTS.md`](./AGENTS.md)의 **Clean Architecture + Monorepo** 가이드를 그대로 따른다. `bootstrap/notification/`을 진입점으로 `notification-api`(요청 접수), `notification-worker`(비동기 발송), `notification-batch`(스턱 복구·DLQ) 3개 부트스트랩 애플리케이션으로 분리한다.
+> 모듈 구조는 [`AGENTS.md`](./AGENTS.md) 의 **Clean Architecture + Monorepo** 가이드를 따르되, **use case 단위 모듈 분리는 패키지 구분으로 대체**했다. `bootstrap/notification/` 을 진입점으로 `notification-api`(요청 접수), `notification-worker`(비동기 발송), `notification-batch`(스턱 복구·DLQ) 3개 부트스트랩 애플리케이션으로 분리한다.
+>
+> use case 별 모듈 (`port` / `port-in-impl` / `port-out-impl` 3 분할 × 6 use case = 18 모듈) 은 도메인 규모 대비 빌드/IDE 비용이 과해 **단일 `:usecase:notification` 모듈로 통합**하고, 각 use case 는 패키지 (`usecase.sendnotification`, `usecase.dispatchnotification`, …) 로 구분한다. 의존 규칙(외부 기술이 use case 안으로 못 들어옴)은 모듈의 `dependencies` 가 컴파일 단계에서 강제한다.
 
 ---
 

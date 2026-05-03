@@ -3,21 +3,7 @@ dependencies {
     implementation project(':core:notification:data')
     implementation project(':infrastructure:jpa-postgres')
 
-    implementation project(':usecase:send-notification:port')
-    implementation project(':usecase:send-notification:port-in-impl')
-    implementation project(':usecase:send-notification:port-out-impl')
-
-    implementation project(':usecase:list-notifications:port')
-    implementation project(':usecase:list-notifications:port-in-impl')
-    implementation project(':usecase:list-notifications:port-out-impl')
-
-    implementation project(':usecase:get-notification:port')
-    implementation project(':usecase:get-notification:port-in-impl')
-    implementation project(':usecase:get-notification:port-out-impl')
-
-    implementation project(':usecase:read-notification:port')
-    implementation project(':usecase:read-notification:port-in-impl')
-    implementation project(':usecase:read-notification:port-out-impl')
+    implementation project(':usecase:notification')
 
     implementation project(':platform:email:email-interface')
     implementation project(':platform:email:email-impl')

@@ -11,30 +11,8 @@ include 'core:notification:data'
 include 'core:notification:notification-test-fixture'
 include 'core:notification:notification-test-stub'
 
-// usecase 모듈 (각 use case별 port / port-in-impl / port-out-impl)
-include 'usecase:send-notification:port'
-include 'usecase:send-notification:port-in-impl'
-include 'usecase:send-notification:port-out-impl'
-
-include 'usecase:dispatch-notification:port'
-include 'usecase:dispatch-notification:port-in-impl'
-include 'usecase:dispatch-notification:port-out-impl'
-
-include 'usecase:list-notifications:port'
-include 'usecase:list-notifications:port-in-impl'
-include 'usecase:list-notifications:port-out-impl'
-
-include 'usecase:get-notification:port'
-include 'usecase:get-notification:port-in-impl'
-include 'usecase:get-notification:port-out-impl'
-
-include 'usecase:read-notification:port'
-include 'usecase:read-notification:port-in-impl'
-include 'usecase:read-notification:port-out-impl'
-
-include 'usecase:reclaim-notification:port'
-include 'usecase:reclaim-notification:port-in-impl'
-include 'usecase:reclaim-notification:port-out-impl'
+// usecase — 알림 도메인 use case 통합 모듈 (use case 단위는 패키지로 구분)
+include 'usecase:notification'
 
 // infrastructure (DB, Web 등 기술 설정)
 include 'infrastructure:jpa-postgres'

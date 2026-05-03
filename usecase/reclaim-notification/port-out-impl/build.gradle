@@ -1,7 +1,0 @@
-dependencies {
-    api project(':usecase:reclaim-notification:port')
-    implementation project(':core:notification:domain')
-    implementation project(':core:notification:data')
-
-    implementation 'org.springframework:spring-context'
-}

@@ -1,7 +1,7 @@
 package ggee.alarmsender.notification.bootstrap.batch
 
-import ggee.alarmsender.notification.usecase.reclaimnotification.port.ReclaimCommand
-import ggee.alarmsender.notification.usecase.reclaimnotification.port.ReclaimNotificationUseCase
+import ggee.alarmsender.notification.usecase.reclaimnotification.ReclaimCommand
+import ggee.alarmsender.notification.usecase.reclaimnotification.ReclaimNotificationUseCase
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
