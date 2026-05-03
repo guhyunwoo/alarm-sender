@@ -1,5 +1,6 @@
 package ggee.alarmsender.notification.bootstrap.api
 
+import ggee.alarmsender.notification.domain.exception.NotificationAccessDeniedException
 import ggee.alarmsender.notification.usecase.getnotification.GetNotificationQuery
 import ggee.alarmsender.notification.usecase.getnotification.GetNotificationUseCase
 import ggee.alarmsender.notification.usecase.listnotifications.ListNotificationsQuery
@@ -78,7 +79,10 @@ class NotificationController(
     ): List<NotificationResponse> {
         // recipientId 미지정 시 본인 알림 조회
         val targetRecipient = recipientId ?: requesterId
-        require(targetRecipient == requesterId) { "본인의 알림만 조회 가능" }
+        if (targetRecipient != requesterId) {
+            // 본인 외 사용자의 알림 목록 시도 — 알림 자체가 특정되지 않으므로 id=0 으로 표기
+            throw NotificationAccessDeniedException(notificationId = 0, requesterId = requesterId)
+        }
 
         return listUseCase.execute(ListNotificationsQuery(targetRecipient, unreadOnly, limit, offset))
             .map(NotificationResponse::from)

@@ -1,10 +1,9 @@
 package ggee.alarmsender.notification.usecase.getnotification
 
+import ggee.alarmsender.notification.domain.exception.NotificationAccessDeniedException
+import ggee.alarmsender.notification.domain.exception.NotificationNotFoundException
 import ggee.alarmsender.notification.testfixture.NotificationFixtures
 import ggee.alarmsender.notification.teststub.InMemoryNotificationRepository
-import ggee.alarmsender.notification.usecase.getnotification.GetNotificationQuery
-import ggee.alarmsender.notification.usecase.getnotification.NotificationAccessDeniedException
-import ggee.alarmsender.notification.usecase.getnotification.NotificationNotFoundException
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import kotlin.test.assertEquals

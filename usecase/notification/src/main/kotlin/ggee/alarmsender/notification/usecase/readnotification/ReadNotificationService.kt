@@ -4,9 +4,8 @@ import ggee.alarmsender.notification.domain.HistoryReason
 import ggee.alarmsender.notification.domain.NotificationHistory
 import ggee.alarmsender.notification.domain.NotificationHistoryRepository
 import ggee.alarmsender.notification.domain.NotificationRepository
-import ggee.alarmsender.notification.usecase.readnotification.ReadNotificationCommand
-import ggee.alarmsender.notification.usecase.readnotification.ReadNotificationResult
-import ggee.alarmsender.notification.usecase.readnotification.ReadNotificationUseCase
+import ggee.alarmsender.notification.domain.exception.NotificationAccessDeniedException
+import ggee.alarmsender.notification.domain.exception.NotificationNotFoundException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
@@ -28,9 +27,9 @@ class ReadNotificationService(
     @Transactional
     override fun execute(command: ReadNotificationCommand): ReadNotificationResult {
         val notification = repository.findById(command.notificationId)
-            ?: throw IllegalArgumentException("notification(id=${command.notificationId}) not found")
-        require(notification.recipientId == command.requesterId) {
-            "notification(id=${command.notificationId}) is not owned by ${command.requesterId}"
+            ?: throw NotificationNotFoundException(command.notificationId)
+        if (notification.recipientId != command.requesterId) {
+            throw NotificationAccessDeniedException(command.notificationId, command.requesterId)
         }
 
         if (notification.readAt != null) {

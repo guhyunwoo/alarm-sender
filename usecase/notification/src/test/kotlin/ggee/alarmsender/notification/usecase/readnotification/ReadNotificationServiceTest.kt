@@ -1,9 +1,10 @@
 package ggee.alarmsender.notification.usecase.readnotification
 
+import ggee.alarmsender.notification.domain.exception.NotificationAccessDeniedException
+import ggee.alarmsender.notification.domain.exception.NotificationNotFoundException
 import ggee.alarmsender.notification.testfixture.NotificationFixtures
 import ggee.alarmsender.notification.teststub.InMemoryNotificationHistoryRepository
 import ggee.alarmsender.notification.teststub.InMemoryNotificationRepository
-import ggee.alarmsender.notification.usecase.readnotification.ReadNotificationCommand
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.time.Clock
@@ -47,10 +48,17 @@ class ReadNotificationServiceTest {
     }
 
     @Test
-    fun `다른 사용자가 시도하면 거부`() {
+    fun `다른 사용자가 시도하면 NotificationAccessDeniedException`() {
         val saved = notifications.save(NotificationFixtures.notification(idempotencyKey = "k1", recipientId = "u1"))
-        assertThrows<IllegalArgumentException> {
+        assertThrows<NotificationAccessDeniedException> {
             sut.execute(ReadNotificationCommand(saved.id!!, "u2"))
+        }
+    }
+
+    @Test
+    fun `없는 알림에 read 시 NotificationNotFoundException`() {
+        assertThrows<NotificationNotFoundException> {
+            sut.execute(ReadNotificationCommand(notificationId = 999, requesterId = "u1"))
         }
     }
 }
