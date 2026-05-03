@@ -158,6 +158,43 @@ class NotificationControllerTest @Autowired constructor(
     }
 
     @Test
+    fun `잘못된 enum 요청 본문은 400 BAD_REQUEST 로 응답한다`() {
+        val body = """
+            {
+              "recipientId": "u1",
+              "type": "UNKNOWN_TYPE",
+              "channel": "EMAIL",
+              "payload": {}
+            }
+        """.trimIndent()
+
+        val resp = rest.postForEntity(
+            "/api/v1/notifications",
+            HttpEntity(body, headers("u1", "bad-enum")),
+            Map::class.java,
+        )
+
+        assertEquals(HttpStatus.BAD_REQUEST, resp.statusCode)
+        assertEquals("BAD_REQUEST", resp.body!!["code"])
+    }
+
+    @Test
+    fun `필수 헤더 누락은 400 BAD_REQUEST 로 응답한다`() {
+        val headers = HttpHeaders().apply {
+            contentType = MediaType.APPLICATION_JSON
+        }
+
+        val resp = rest.postForEntity(
+            "/api/v1/notifications",
+            HttpEntity(createBody, headers),
+            Map::class.java,
+        )
+
+        assertEquals(HttpStatus.BAD_REQUEST, resp.statusCode)
+        assertEquals("BAD_REQUEST", resp.body!!["code"])
+    }
+
+    @Test
     fun `목록 조회 — 본인 알림 + 최신순 + unreadOnly 필터`() {
         rest.postForEntity("/api/v1/notifications",
             HttpEntity("""{"recipientId":"u1","type":"ENROLL_COMPLETED","channel":"EMAIL","payload":{},"refType":"E","refId":"1"}""", headers("u1", "l1")), Map::class.java)
