@@ -2,6 +2,8 @@ package ggee.alarmsender.notification.usecase.retrynotification
 
 import ggee.alarmsender.notification.domain.Notification
 import ggee.alarmsender.notification.domain.RequesterRole
+import ggee.alarmsender.notification.domain.exception.NotificationNotFoundException
+import ggee.alarmsender.notification.domain.exception.OperatorOnlyException
 
 interface RetryNotificationUseCase {
     /**
@@ -17,8 +19,8 @@ interface RetryNotificationUseCase {
      *  - attempt_count = 0 으로 리셋 (운영자가 새로 시도를 거는 것으로 본다)
      *  - history 에 reason=MANUAL_RETRY 적재 — 자동 재시도와 구분된다
      *
-     * @throws ggee.alarmsender.notification.domain.exception.NotificationNotFoundException 알림이 없을 때
-     * @throws ggee.alarmsender.notification.domain.exception.OperatorOnlyException 호출자가 OPERATOR 가 아닐 때
+     * @throws NotificationNotFoundException 알림이 없을 때
+     * @throws OperatorOnlyException 호출자가 OPERATOR 가 아닐 때
      */
     fun execute(command: RetryNotificationCommand): Notification
 }

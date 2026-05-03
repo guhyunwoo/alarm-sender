@@ -15,6 +15,7 @@ import ggee.alarmsender.notification.teststub.InMemoryNotificationTemplateReposi
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.TransactionDefinition
 import org.springframework.transaction.TransactionStatus
 import org.springframework.transaction.support.TransactionCallback
 import org.springframework.transaction.support.TransactionTemplate
@@ -183,7 +184,7 @@ class DispatchNotificationServiceTest {
 
     /** TransactionTemplate 가 콜백 호출만 위임하는 fake. 단위 테스트 한정. */
     private class NoOpTransactionManager : PlatformTransactionManager {
-        override fun getTransaction(definition: org.springframework.transaction.TransactionDefinition?): TransactionStatus =
+        override fun getTransaction(definition: TransactionDefinition?): TransactionStatus =
             FakeStatus()
 
         override fun commit(status: TransactionStatus) = Unit

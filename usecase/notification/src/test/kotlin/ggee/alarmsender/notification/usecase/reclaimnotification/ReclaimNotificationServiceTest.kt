@@ -6,6 +6,7 @@ import ggee.alarmsender.notification.teststub.InMemoryNotificationHistoryReposit
 import ggee.alarmsender.notification.teststub.InMemoryNotificationOutboxRepository
 import ggee.alarmsender.notification.teststub.InMemoryNotificationRepository
 import ggee.alarmsender.notification.usecase.dispatchnotification.DbPollingOutboxPublisher
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.Clock
 import java.time.Instant
@@ -23,7 +24,7 @@ class ReclaimNotificationServiceTest {
 
     private val sut = ReclaimNotificationService(outboxPublisher, history, clock)
 
-    @org.junit.jupiter.api.BeforeEach
+    @BeforeEach
     fun setUp() {
         notifications.clear()
         outbox.clear()

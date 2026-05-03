@@ -10,6 +10,7 @@ import ggee.alarmsender.notification.teststub.InMemoryNotificationRepository
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.TransactionDefinition
 import org.springframework.transaction.TransactionStatus
 import org.springframework.transaction.support.TransactionTemplate
 import java.time.Clock
@@ -112,7 +113,7 @@ class SendNotificationServiceTest {
 
     /** TransactionTemplate 가 콜백을 그대로 실행하도록 만드는 테스트용 fake. */
     private class NoOpTransactionManager : PlatformTransactionManager {
-        override fun getTransaction(definition: org.springframework.transaction.TransactionDefinition?): TransactionStatus =
+        override fun getTransaction(definition: TransactionDefinition?): TransactionStatus =
             FakeStatus()
 
         override fun commit(status: TransactionStatus) = Unit

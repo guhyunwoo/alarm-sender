@@ -6,12 +6,15 @@ import ggee.alarmsender.notification.domain.OutboxStatus
 import ggee.alarmsender.notification.testfixture.NotificationFixtures
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.jdbc.core.JdbcTemplate
 import org.testcontainers.junit.jupiter.Testcontainers
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.Executors
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -116,7 +119,7 @@ class NotificationOutboxRepositoryImplTest @Autowired constructor(
 
         val workerCount = 8
         val limit = 20
-        val executor = java.util.concurrent.Executors.newFixedThreadPool(workerCount)
+        val executor = Executors.newFixedThreadPool(workerCount)
         val futures = (1..workerCount).map { i ->
             executor.submit<List<Long>> {
                 sut.claimBatch("worker-$i", now, leaseDuration, limit).map { it.requireId() }
@@ -153,7 +156,7 @@ class NotificationOutboxRepositoryImplTest @Autowired constructor(
 
         // 4. 워커 A 가 부활 — 도메인 객체는 여전히 version=1 (stale).
         //    markSucceeded 후 update 시도 → OptimisticLockingFailureException 으로 차단.
-        org.junit.jupiter.api.assertThrows<org.springframework.dao.OptimisticLockingFailureException> {
+        assertThrows<OptimisticLockingFailureException> {
             sut.update(claimedByA.markSucceeded(laterAfterLease.plusSeconds(1)))
         }
     }

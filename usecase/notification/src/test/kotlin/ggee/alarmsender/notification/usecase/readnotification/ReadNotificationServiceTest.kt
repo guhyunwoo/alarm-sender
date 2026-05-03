@@ -5,6 +5,7 @@ import ggee.alarmsender.notification.domain.exception.NotificationNotFoundExcept
 import ggee.alarmsender.notification.testfixture.NotificationFixtures
 import ggee.alarmsender.notification.teststub.InMemoryNotificationHistoryRepository
 import ggee.alarmsender.notification.teststub.InMemoryNotificationRepository
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.time.Clock
@@ -26,7 +27,7 @@ class ReadNotificationServiceTest {
 
     private val sut = ReadNotificationService(notifications, history, clock)
 
-    @org.junit.jupiter.api.BeforeEach
+    @BeforeEach
     fun setUp() {
         notifications.clear()
         history.clear()

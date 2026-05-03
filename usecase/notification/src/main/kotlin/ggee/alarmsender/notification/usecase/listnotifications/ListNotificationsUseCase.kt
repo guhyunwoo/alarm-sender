@@ -1,12 +1,13 @@
 package ggee.alarmsender.notification.usecase.listnotifications
 
 import ggee.alarmsender.notification.domain.Notification
+import ggee.alarmsender.notification.domain.exception.RecipientForbiddenException
 
 interface ListNotificationsUseCase {
     /**
      * 특정 수신자(recipientId)의 알림 목록 조회.
      *
-     * @throws ggee.alarmsender.notification.domain.exception.RecipientForbiddenException
+     * @throws RecipientForbiddenException
      *         requesterId 가 query.recipientId 와 다를 때 (본인 외 사용자 조회 차단).
      *         권한 검사는 use case 가 하고, 컨트롤러는 헤더만 넘긴다.
      */

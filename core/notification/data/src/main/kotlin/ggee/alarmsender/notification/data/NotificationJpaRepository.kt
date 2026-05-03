@@ -1,5 +1,6 @@
 package ggee.alarmsender.notification.data
 
+import ggee.alarmsender.notification.domain.NotificationType
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
@@ -10,7 +11,7 @@ interface NotificationJpaRepository : JpaRepository<NotificationEntity, Long> {
 
     fun findFirstByRecipientIdAndTypeAndRefTypeAndRefId(
         recipientId: String,
-        type: ggee.alarmsender.notification.domain.NotificationType,
+        type: NotificationType,
         refType: String?,
         refId: String?,
     ): NotificationEntity?
