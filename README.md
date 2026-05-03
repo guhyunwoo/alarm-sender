@@ -140,28 +140,39 @@ curl -X POST http://localhost:8080/api/v1/notifications/42/read \
 
 ## 데이터 모델 설명
 
-### 테이블 구성 (확정 설계)
+### 테이블 구성
 
 - **`notification`** — 알림 본체
-  - 주요 컬럼: 수신자, 타입, 채널, 페이로드(jsonb), 상태, 읽음 시각, 생성/예약/발송 시각, 낙관적 락 버전
-  - `UNIQUE (idempotency_key)` — 클라이언트 재시도 방어
-  - `UNIQUE (recipient, type, ref_type, ref_id)` — 자연 키 중복 방어
+  - 컬럼: `id`, `recipient_id`, `type`, `channel`(EMAIL/IN_APP), `payload`(TEXT, JSON 직렬화 문자열), `idempotency_key`, `ref_type`, `ref_id`, `status`, `read_at`, `created_at`, `sent_at`
+  - **partial UNIQUE** `idempotency_key WHERE idempotency_key IS NOT NULL` — 클라이언트 재시도 방어 (NULL 허용 시 다중 NULL 가능)
+  - **partial UNIQUE** `(recipient_id, type, ref_type, ref_id) WHERE ref_type IS NOT NULL AND ref_id IS NOT NULL` — 자연 키 중복 방어 (ref 가 모두 있을 때만 강제)
+  - `INDEX (recipient_id, created_at DESC)` — 사용자 알림 목록
+  - **partial INDEX** `(recipient_id, created_at DESC) WHERE read_at IS NULL` — 안 읽은 알림 조회 효율
 - **`notification_outbox`** — 비동기 처리 큐
-  - 주요 컬럼: 대상 알림 FK, `available_at`(다음 시도 시각), `attempt_count`, `lease_owner`, `lease_expires_at`, 상태, `last_error`
-  - `INDEX (status, available_at)` — 폴링 효율
-- **`notification_history`** — 상태 전이 이력 (감사·디버깅)
-- **`notification_template`** *(선택 구현)* — 타입·채널별 메시지 템플릿
+  - 컬럼: `id`, `notification_id`(FK, UNIQUE), `status`(PENDING/IN_PROGRESS/DONE/DEAD), `available_at`(다음 시도 시각), `attempt_count`, `lease_owner`, `lease_expires_at`, `last_error`(TEXT), `created_at`, `updated_at`
+  - **partial INDEX** `available_at WHERE status='PENDING'` — SKIP LOCKED 폴링 효율
+  - **partial INDEX** `lease_expires_at WHERE status='IN_PROGRESS'` — lease 만료 reclaim 효율
+- **`notification_history`** — 상태 전이 이력 (append-only, 감사·디버깅)
+  - 컬럼: `id`, `notification_id`(FK), `from_status`, `to_status`, `reason`(CREATED/CLAIMED/SENT/TRANSIENT_FAILURE/EXHAUSTED/RECLAIMED/MANUAL_RETRY/READ), `detail`, `occurred_at`
 
 ### 상태 전이
 
 ```
-PENDING ──claim──▶ IN_PROGRESS ──ok──▶ SENT
-                       │  ▲
-              fail     │  │ retry (available_at 갱신)
-                       ▼  │
-                   FAILED(transient)
-                       │
-                       └─── exceed-max ───▶ DEAD_LETTER ──manual retry──▶ PENDING
+[notification_outbox.status]
+PENDING ──worker claim──▶ IN_PROGRESS ──ok──▶ DONE
+   ▲                          │
+   │ retry(available_at 갱신)  │ transient fail
+   │                          ▼
+   └──────────  attempt_count++ ───────────┐
+                                            │ exceed max(=5)
+                                            ▼
+                                          DEAD ──manual retry──▶ PENDING (attempt_count=0)
+   ▲
+   └── batch reclaim (IN_PROGRESS AND lease_expires_at < now)
+
+[notification.status]
+PENDING → IN_PROGRESS → SENT 가 정상 흐름.
+DEAD 격리 시 notification 도 DEAD_LETTER 로 전이. 수동 재시도 시 다시 PENDING.
 ```
 
 ---
