@@ -1,7 +1,10 @@
 package ggee.alarmsender.notification.bootstrap.worker
 
 import ggee.alarmsender.notification.domain.ExponentialBackoffRetryPolicy
+import ggee.alarmsender.notification.domain.NotificationOutboxRepository
 import ggee.alarmsender.notification.domain.RetryPolicy
+import ggee.alarmsender.notification.usecase.dispatchnotification.DbPollingOutboxPublisher
+import ggee.alarmsender.notification.usecase.dispatchnotification.OutboxPublisher
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
@@ -51,6 +54,10 @@ class NotificationWorkerConfig {
     @Bean
     fun retryPolicy(properties: WorkerProperties): RetryPolicy =
         ExponentialBackoffRetryPolicy(maxAttempts = properties.maxAttempts)
+
+    @Bean
+    fun outboxPublisher(repository: NotificationOutboxRepository): OutboxPublisher =
+        DbPollingOutboxPublisher(repository)
 
     /**
      * 워커의 row 단위 결과 반영 트랜잭션. PROPAGATION_REQUIRES_NEW 명시 — 누군가 outer 메서드에
