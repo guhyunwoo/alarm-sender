@@ -48,6 +48,6 @@ class NotificationDataInconsistencyException(
 class OperatorOnlyException(
     val operationName: String,
     val requesterId: String,
-) : IllegalStateException("'${'$'}operationName' 은(는) 운영자만 수행할 수 있습니다 (요청자: ${'$'}requesterId)") {
+) : IllegalStateException("'$operationName' 은(는) 운영자만 수행할 수 있습니다 (요청자: $requesterId)") {
     val code: String = "OPERATOR_ONLY"
 }

@@ -31,7 +31,7 @@ data class Notification(
 
     fun markSent(now: Instant): Notification {
         require(status == NotificationStatus.PENDING) {
-            "${'$'}status 상태에서 SENT 로 전이할 수 없다"
+            "$status 상태에서 SENT 로 전이할 수 없다"
         }
         return copy(status = NotificationStatus.SENT, sentAt = now)
     }
@@ -42,7 +42,7 @@ data class Notification(
         // 도메인 상태 전제 위반은 IllegalStateException — '현재 상태에서 동작 불가' 의미.
         // 핸들러에서 409 Conflict 로 매핑된다 (재시도 입력 자체는 valid).
         check(status == NotificationStatus.DEAD_LETTER) {
-            "DEAD_LETTER 가 아닌 상태에서 수동 재시도 불가 (현재: ${'$'}status)"
+            "DEAD_LETTER 가 아닌 상태에서 수동 재시도 불가 (현재: $status)"
         }
         return copy(status = NotificationStatus.PENDING)
     }

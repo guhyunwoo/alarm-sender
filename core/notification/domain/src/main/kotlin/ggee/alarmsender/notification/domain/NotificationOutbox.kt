@@ -27,8 +27,8 @@ data class NotificationOutbox(
     val version: Long = 0L,
 ) {
     fun claim(workerId: String, now: Instant, leaseDuration: Duration): NotificationOutbox {
-        require(status == OutboxStatus.PENDING) { "PENDING 이 아닌 row 를 claim 할 수 없다 (현재: ${'$'}status)" }
-        require(!availableAt.isAfter(now)) { "availableAt(${'$'}availableAt) 이 아직 도래하지 않았다" }
+        require(status == OutboxStatus.PENDING) { "PENDING 이 아닌 row 를 claim 할 수 없다 (현재: $status)" }
+        require(!availableAt.isAfter(now)) { "availableAt($availableAt) 이 아직 도래하지 않았다" }
         return copy(
             status = OutboxStatus.IN_PROGRESS,
             leaseOwner = workerId,
@@ -38,7 +38,7 @@ data class NotificationOutbox(
     }
 
     fun markSucceeded(now: Instant): NotificationOutbox {
-        require(status == OutboxStatus.IN_PROGRESS) { "IN_PROGRESS 가 아닌 row 를 success 처리 불가 (현재: ${'$'}status)" }
+        require(status == OutboxStatus.IN_PROGRESS) { "IN_PROGRESS 가 아닌 row 를 success 처리 불가 (현재: $status)" }
         return copy(
             status = OutboxStatus.DONE,
             leaseOwner = null,
@@ -54,7 +54,7 @@ data class NotificationOutbox(
      */
     fun markFailedPermanent(error: String, now: Instant): NotificationOutbox {
         require(status == OutboxStatus.IN_PROGRESS) {
-            "IN_PROGRESS 가 아닌 row 는 permanent failure 처리 불가 (현재: ${'$'}status)"
+            "IN_PROGRESS 가 아닌 row 는 permanent failure 처리 불가 (현재: $status)"
         }
         return copy(
             status = OutboxStatus.DEAD,
@@ -70,7 +70,7 @@ data class NotificationOutbox(
      * 일시 실패. 정책에 따라 재시도 일정으로 복귀하거나 한도 초과 시 DEAD 격리.
      */
     fun markFailedTransient(error: String, now: Instant, retryPolicy: RetryPolicy): NotificationOutbox {
-        require(status == OutboxStatus.IN_PROGRESS) { "IN_PROGRESS 가 아닌 row 를 failure 처리 불가 (현재: ${'$'}status)" }
+        require(status == OutboxStatus.IN_PROGRESS) { "IN_PROGRESS 가 아닌 row 를 failure 처리 불가 (현재: $status)" }
         val nextAttempt = attemptCount + 1
         return if (retryPolicy.isExhausted(nextAttempt)) {
             copy(
@@ -99,9 +99,9 @@ data class NotificationOutbox(
      * 정상 종료가 아닌 워커 죽음·GC pause 등을 신호 없이 처리하는 경로.
      */
     fun reclaim(now: Instant): NotificationOutbox {
-        require(status == OutboxStatus.IN_PROGRESS) { "IN_PROGRESS 가 아닌 row 는 reclaim 불가 (현재: ${'$'}status)" }
+        require(status == OutboxStatus.IN_PROGRESS) { "IN_PROGRESS 가 아닌 row 는 reclaim 불가 (현재: $status)" }
         require(leaseExpiresAt != null && leaseExpiresAt.isBefore(now)) {
-            "lease 가 아직 만료되지 않았다 (lease=${'$'}leaseExpiresAt, now=${'$'}now)"
+            "lease 가 아직 만료되지 않았다 (lease=$leaseExpiresAt, now=$now)"
         }
         return copy(
             status = OutboxStatus.PENDING,
@@ -115,7 +115,7 @@ data class NotificationOutbox(
      * 운영자 명시적 의지의 수동 재시도. attemptCount 를 0 으로 리셋.
      */
     fun manualRetry(now: Instant): NotificationOutbox {
-        require(status == OutboxStatus.DEAD) { "DEAD 가 아닌 row 는 수동 재시도 불가 (현재: ${'$'}status)" }
+        require(status == OutboxStatus.DEAD) { "DEAD 가 아닌 row 는 수동 재시도 불가 (현재: $status)" }
         return copy(
             status = OutboxStatus.PENDING,
             attemptCount = 0,
