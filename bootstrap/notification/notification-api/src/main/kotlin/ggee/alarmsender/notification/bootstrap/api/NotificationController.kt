@@ -1,6 +1,5 @@
 package ggee.alarmsender.notification.bootstrap.api
 
-import ggee.alarmsender.notification.domain.exception.RecipientForbiddenException
 import ggee.alarmsender.notification.usecase.getnotification.GetNotificationQuery
 import ggee.alarmsender.notification.usecase.getnotification.GetNotificationUseCase
 import ggee.alarmsender.notification.usecase.listnotifications.ListNotificationsQuery
@@ -73,14 +72,17 @@ class NotificationController(
         @RequestParam(defaultValue = "20") limit: Int,
         @RequestParam(defaultValue = "0") offset: Int,
     ): List<NotificationResponse> {
-        // recipientId 미지정 시 본인 알림 조회
+        // recipientId 미지정 시 본인 알림 조회. 권한 검사는 use case 책임.
         val targetRecipient = recipientId ?: requesterId
-        if (targetRecipient != requesterId) {
-            throw RecipientForbiddenException(targetRecipientId = targetRecipient, requesterId = requesterId)
-        }
-
-        return listUseCase.execute(ListNotificationsQuery(targetRecipient, unreadOnly, limit, offset))
-            .map(NotificationResponse::from)
+        return listUseCase.execute(
+            ListNotificationsQuery(
+                recipientId = targetRecipient,
+                requesterId = requesterId,
+                unreadOnly = unreadOnly,
+                limit = limit,
+                offset = offset,
+            ),
+        ).map(NotificationResponse::from)
     }
 
     @PostMapping("/{id}/read")

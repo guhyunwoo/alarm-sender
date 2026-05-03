@@ -59,6 +59,7 @@ class DispatchNotificationService(
         var succeeded = 0
         var failed = 0
         var deadLettered = 0
+        var errored = 0
 
         claimed.forEach { outbox ->
             // row 단위 격리: 한 row 처리 실패가 같은 batch 의 다른 row 처리를 막지 않게 한다.
@@ -81,19 +82,31 @@ class DispatchNotificationService(
                     }
                 }
             } catch (ex: Exception) {
+                // 분류:
+                //  - OptimisticLockingFailureException: lease 만료 후 부활한 stale write — 정상 격리, 중복 발송 가능
+                //  - NotificationDataInconsistencyException: outbox-notification 매핑 깨짐 — 운영 alert 대상
+                //  - 기타 DB/IO 예외: lease 만료 후 reclaim 으로 자동 복구
+                errored++
                 log.error(
-                    "dispatch failed: outboxId={}, notificationId={}. lease 만료 후 reclaim 됨.",
+                    "dispatch errored: outboxId={}, notificationId={}, attempt={}. lease 만료 후 reclaim 대상.",
                     outbox.id,
                     outbox.notificationId,
+                    outbox.attemptCount,
                     ex,
                 )
             }
+        }
+
+        // claimed = succeeded + failed + errored 가 항상 성립해야 한다 (운영 invariant)
+        check(claimed.size == succeeded + failed + errored) {
+            "dispatch counter mismatch: claimed=${claimed.size}, succeeded=$succeeded, failed=$failed, errored=$errored"
         }
         return DispatchNotificationResult(
             claimed = claimed.size,
             succeeded = succeeded,
             failed = failed,
             deadLettered = deadLettered,
+            errored = errored,
         )
     }
 
@@ -161,18 +174,10 @@ class DispatchNotificationService(
     }
 
     private fun applyPermanentFailure(outbox: NotificationOutbox, notification: Notification, reason: String, now: Instant): Outcome {
-        // 영구 실패는 재시도하지 않고 즉시 DEAD 격리.
-        // attempt_count 를 한도까지 한 번에 올려 같은 row 가 다시 retry 큐에 들어가지 않게 한다.
-        val deadOutbox = outbox.copy(
-            status = OutboxStatus.DEAD,
-            attemptCount = retryPolicy.maxAttempts,
-            leaseOwner = null,
-            leaseExpiresAt = null,
-            lastError = reason,
-            updatedAt = now,
-        )
-        outboxPublisher.update(deadOutbox)
-        quarantine(notification, HistoryReason.EXHAUSTED, reason, now)
+        // 영구 실패는 재시도하지 않고 즉시 DEAD 격리. attempt_count 는 도메인 메서드가 +1 만 하여
+        // 실제 시도 횟수를 보존한다 (한도 점프 안 함). 한도 소진 vs 영구 실패 구분은 history.reason.
+        outboxPublisher.update(outbox.markFailedPermanent(reason, now))
+        quarantine(notification, HistoryReason.PERMANENT_FAILURE, reason, now)
         return Outcome.FAILED_DEAD
     }
 

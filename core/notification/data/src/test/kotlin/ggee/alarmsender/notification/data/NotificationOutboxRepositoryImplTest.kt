@@ -131,6 +131,33 @@ class NotificationOutboxRepositoryImplTest @Autowired constructor(
     }
 
     @Test
+    fun `낙관적 락 — claim 후 stale 도메인 객체로 update 시도 시 OptimisticLock 차단`() {
+        // 시나리오: 워커 A 가 claim → 들고 있던 도메인 객체(version=1)를 보관.
+        // 그 사이 batch 가 reclaim → version=2 로 증가.
+        // 부활한 워커 A 가 stale 객체로 markSucceeded → DB UPDATE 실패해야 함.
+        val nid = givenNotification("opt-lock")
+        sut.save(NotificationFixtures.outbox(notificationId = nid, availableAt = now, createdAt = now, updatedAt = now))
+
+        // 1. 워커 A 가 claim — version 이 +1 됨
+        val claimedByA = sut.claimBatch(workerA, now, leaseDuration, 1).single()
+        val versionAtClaim = claimedByA.version
+
+        // 2. lease 만료 후 batch 가 reclaim → DB version 증가
+        val expired = claimedByA.copy(leaseExpiresAt = now.minusSeconds(1))
+        sut.update(expired) // lease 만료된 상태로 갱신
+        val reclaimed = sut.findExpired(now, 10).single().reclaim(now)
+        sut.update(reclaimed) // version 증가
+
+        val versionAfterReclaim = sut.findById(claimedByA.requireId())!!.version
+        assertTrue(versionAfterReclaim > versionAtClaim, "reclaim 으로 version 이 증가해야 함")
+
+        // 3. 워커 A 가 stale 객체로 markSucceeded 시도 → OptimisticLockException 차단
+        org.junit.jupiter.api.assertThrows<org.springframework.dao.OptimisticLockingFailureException> {
+            sut.update(claimedByA.markSucceeded(now.plusSeconds(1)))
+        }
+    }
+
+    @Test
     fun `update 로 markSucceeded 영속화 — DONE 상태로 갱신`() {
         val notificationId = givenNotification("succ")
         val saved = sut.save(NotificationFixtures.outbox(notificationId = notificationId, availableAt = now, createdAt = now, updatedAt = now))

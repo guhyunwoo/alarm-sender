@@ -2,6 +2,7 @@ package ggee.alarmsender.notification.data
 
 import ggee.alarmsender.notification.domain.NotificationOutbox
 import ggee.alarmsender.notification.domain.NotificationOutboxRepository
+import ggee.alarmsender.notification.domain.OutboxStatus
 import org.springframework.jdbc.core.RowMapper
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
@@ -94,7 +95,7 @@ class NotificationOutboxRepositoryImpl(
             NotificationOutbox(
                 id = rs.getLong("id"),
                 notificationId = rs.getLong("notification_id"),
-                status = ggee.alarmsender.notification.domain.OutboxStatus.valueOf(rs.getString("status")),
+                status = OutboxStatus.valueOf(rs.getString("status")),
                 availableAt = rs.getTimestamp("available_at").toInstant(),
                 attemptCount = rs.getInt("attempt_count"),
                 leaseOwner = rs.getString("lease_owner"),

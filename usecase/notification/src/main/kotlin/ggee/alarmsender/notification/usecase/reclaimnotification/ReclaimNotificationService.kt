@@ -3,6 +3,7 @@ package ggee.alarmsender.notification.usecase.reclaimnotification
 import ggee.alarmsender.notification.domain.HistoryReason
 import ggee.alarmsender.notification.domain.NotificationHistory
 import ggee.alarmsender.notification.domain.NotificationHistoryRepository
+import ggee.alarmsender.notification.domain.NotificationStatus
 import ggee.alarmsender.notification.usecase.dispatchnotification.OutboxPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -33,7 +34,7 @@ class ReclaimNotificationService(
                 NotificationHistory.of(
                     notificationId = outbox.notificationId,
                     from = null,
-                    to = ggee.alarmsender.notification.domain.NotificationStatus.PENDING,
+                    to = NotificationStatus.PENDING,
                     reason = HistoryReason.RECLAIMED,
                     now = now,
                     detail = "lease=${outbox.leaseExpiresAt} owner=${outbox.leaseOwner}",

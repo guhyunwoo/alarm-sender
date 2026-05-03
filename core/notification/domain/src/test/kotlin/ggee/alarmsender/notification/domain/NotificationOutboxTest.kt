@@ -60,6 +60,22 @@ class NotificationOutboxTest {
     }
 
     @Test
+    fun `markFailedPermanent 는 첫 시도라도 즉시 DEAD 격리하고 attempt_count 는 실제 시도 횟수 유지`() {
+        val o = outbox().claim(workerId, now, leaseDuration)
+        val dead = o.markFailedPermanent("invalid email address", now.plusSeconds(1))
+        assertEquals(OutboxStatus.DEAD, dead.status)
+        assertEquals(1, dead.attemptCount, "영구 실패 시 attempt_count 점프 금지 — 실제 시도 횟수 유지")
+        assertEquals("invalid email address", dead.lastError)
+    }
+
+    @Test
+    fun `markFailedPermanent 는 IN_PROGRESS 가 아닌 row 에서 거부된다`() {
+        org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
+            outbox().markFailedPermanent("x", now)
+        }
+    }
+
+    @Test
     fun `markFailedTransient 는 한도 초과 시 DEAD 로 격리한다`() {
         var o = outbox().copy(attemptCount = 4).claim(workerId, now, leaseDuration)
         o = o.markFailedTransient("smtp 5xx", now.plusSeconds(1), retryPolicy)

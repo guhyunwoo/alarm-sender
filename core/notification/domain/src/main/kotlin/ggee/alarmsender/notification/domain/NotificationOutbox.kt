@@ -49,6 +49,24 @@ data class NotificationOutbox(
     }
 
     /**
+     * 영구 실패. 첫 시도라도 즉시 DEAD 격리. attemptCount 는 실제 시도 횟수 그대로 유지하여
+     * 운영 추적성을 보존한다 (한도 소진 vs 영구 실패 구분은 history.reason 으로).
+     */
+    fun markFailedPermanent(error: String, now: Instant): NotificationOutbox {
+        require(status == OutboxStatus.IN_PROGRESS) {
+            "IN_PROGRESS 가 아닌 row 는 permanent failure 처리 불가 (현재: ${'$'}status)"
+        }
+        return copy(
+            status = OutboxStatus.DEAD,
+            attemptCount = attemptCount + 1,
+            leaseOwner = null,
+            leaseExpiresAt = null,
+            lastError = error,
+            updatedAt = now,
+        )
+    }
+
+    /**
      * 일시 실패. 정책에 따라 재시도 일정으로 복귀하거나 한도 초과 시 DEAD 격리.
      */
     fun markFailedTransient(error: String, now: Instant, retryPolicy: RetryPolicy): NotificationOutbox {

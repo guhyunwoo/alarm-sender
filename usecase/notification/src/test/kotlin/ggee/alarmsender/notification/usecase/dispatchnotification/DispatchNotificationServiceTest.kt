@@ -122,6 +122,37 @@ class DispatchNotificationServiceTest {
         assertEquals(0, emailSender.all().size)
     }
 
+    @Test
+    fun `영구 실패 — 첫 시도라도 즉시 DEAD 격리, attempt_count=1, history PERMANENT_FAILURE`() {
+        val o = seedReadyOutbox("permanent")
+        emailSender.nextResult = EmailSendResult.PermanentFailure("invalid email address")
+
+        val result = sut.execute(command())
+        assertEquals(1, result.deadLettered, "영구 실패는 즉시 DEAD")
+        assertEquals(0, result.succeeded)
+
+        val outboxAfter = outbox.findById(o.id!!)
+        assertEquals(OutboxStatus.DEAD, outboxAfter?.status)
+        assertEquals(1, outboxAfter?.attemptCount, "영구 실패 시 attempt_count 점프 금지 — 실제 시도 횟수 1 유지")
+        assertEquals("invalid email address", outboxAfter?.lastError)
+
+        val notificationAfter = notifications.findById(o.notificationId)
+        assertEquals(NotificationStatus.DEAD_LETTER, notificationAfter?.status)
+
+        // history.reason 으로 영구 실패 vs 한도 소진 구분
+        val histories = history.findByNotificationId(o.notificationId)
+        val deadEntry = histories.last()
+        assertEquals(ggee.alarmsender.notification.domain.HistoryReason.PERMANENT_FAILURE, deadEntry.reason)
+    }
+
+    @Test
+    fun `dispatch counter invariant — claimed = succeeded + failed + errored`() {
+        // 정상 발송 1건
+        seedReadyOutbox("ok-1")
+        val result = sut.execute(command())
+        assertEquals(result.claimed, result.succeeded + result.failed + result.errored)
+    }
+
     /** TransactionTemplate 가 콜백 호출만 위임하는 fake. 단위 테스트 한정. */
     private class NoOpTransactionManager : PlatformTransactionManager {
         override fun getTransaction(definition: org.springframework.transaction.TransactionDefinition?): TransactionStatus =

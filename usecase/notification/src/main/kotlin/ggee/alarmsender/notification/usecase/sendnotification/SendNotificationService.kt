@@ -28,6 +28,11 @@ import java.time.Instant
  * 본 서비스는 이를 use case 내부에서 catch 하여 재조회 후 기존 알림을 반환한다.
  * 컨트롤러는 충돌 처리 책임을 갖지 않는다.
  *
+ * **호출 계약 (중요)**: 본 서비스는 **트랜잭션 밖에서 호출되어야** 한다.
+ * 이유는 1차/2차 read 가 트랜잭션 밖에서 실행되어야 다른 트랜잭션의 commit 결과를 볼 수 있기 때문.
+ * 만약 outer @Transactional 메서드에서 호출하면 read 가 outer snapshot 에 묶여 race-fallback
+ * read 가 null 을 받게 된다 (특히 REPEATABLE_READ 격리). 호출 계약 위반은 프로그래머 오류.
+ *
  * 트랜잭션 분리: 1차 read 는 트랜잭션 밖 (멱등 hit 이 다수, read-only). 신규 INSERT 만 새 트랜잭션
  * (REQUIRES_NEW). race-fallback read 는 INSERT 트랜잭션이 롤백된 뒤이므로 다시 트랜잭션 밖에서 수행 —
  * 이렇게 해야 다른 커밋된 트랜잭션의 결과를 볼 수 있다.

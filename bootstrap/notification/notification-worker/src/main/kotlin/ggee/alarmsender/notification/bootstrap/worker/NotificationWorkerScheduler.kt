@@ -31,12 +31,13 @@ class NotificationWorkerScheduler(
         )
         if (result.claimed > 0) {
             log.info(
-                "dispatch worker={} claimed={} succeeded={} failed={} dead={}",
+                "dispatch worker={} claimed={} succeeded={} failed={} dead={} errored={}",
                 workerProperties.workerId,
                 result.claimed,
                 result.succeeded,
                 result.failed,
                 result.deadLettered,
+                result.errored,
             )
         }
     }
