@@ -1,0 +1,27 @@
+# 빌드 산출물 — 컨테이너 내부에서 새로 생성한다.
+**/build/
+**/.gradle/
+.gradle/
+.kotlin/
+
+# IDE / OS 메타파일
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# VCS
+.git/
+.gitignore
+.gitattributes
+.editorconfig
+
+# 문서·로컬 메모 — 이미지에 포함할 필요 없음
+README.md
+AGENTS.md
+COMMIT.md
+docs/
+
+# 운영 스크립트/툴
+.claude/
+HELP.md

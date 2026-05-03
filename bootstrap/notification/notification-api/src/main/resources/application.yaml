@@ -4,9 +4,9 @@ spring:
   jackson:
     property-naming-strategy: SNAKE_CASE
   datasource:
-    url: jdbc:postgresql://localhost:5432/alarm_sender
-    username: alarm
-    password: alarm
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:alarm_sender}
+    username: ${POSTGRES_USER:alarm}
+    password: ${POSTGRES_PASSWORD:alarm}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:

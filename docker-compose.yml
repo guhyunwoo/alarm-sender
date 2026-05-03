@@ -16,5 +16,72 @@ services:
       timeout: 5s
       retries: 5
 
+  notification-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    image: alarm-sender/notification-api:local
+    container_name: alarm-sender-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: alarm_sender
+      POSTGRES_USER: alarm
+      POSTGRES_PASSWORD: alarm
+    ports:
+      - "8080:8080"
+    healthcheck:
+      # 8080 포트가 listen 시작됐는지 bash TCP 프로브로 확인. 추가 패키지 설치 불필요.
+      test: ["CMD", "bash", "-c", "</dev/tcp/localhost/8080"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+
+  notification-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: worker
+    image: alarm-sender/notification-worker:local
+    container_name: alarm-sender-worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # api 가 Flyway 마이그레이션을 끝낸 뒤에 worker 의 ddl-auto: validate 가 통과하도록 healthy 대기.
+      notification-api:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: alarm_sender
+      POSTGRES_USER: alarm
+      POSTGRES_PASSWORD: alarm
+    restart: unless-stopped
+
+  notification-batch:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: batch
+    image: alarm-sender/notification-batch:local
+    container_name: alarm-sender-batch
+    depends_on:
+      postgres:
+        condition: service_healthy
+      notification-api:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: alarm_sender
+      POSTGRES_USER: alarm
+      POSTGRES_PASSWORD: alarm
+    restart: unless-stopped
+
 volumes:
   alarm-sender-pg-data:

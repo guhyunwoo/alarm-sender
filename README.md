@@ -40,12 +40,20 @@ use case별 모듈을 `port` / `port-in-impl` / `port-out-impl` 3분할 × 6 use
 
 ## 실행 방법
 
-### 사전 요구
+```bash
+docker compose up --build
+# API: http://localhost:8080
+# Postgres: localhost:5432 (alarm/alarm/alarm_sender)
+```
 
-- JDK 21 (Gradle 9 toolchain으로 자동 다운로드 가능)
-- Docker Desktop (PostgreSQL 컨테이너, 통합 테스트 TestContainers)
+기동 순서: `postgres` → `notification-api`(Flyway 마이그레이션) → `notification-worker` / `notification-batch`. worker/batch 는 api 의 healthcheck 가 통과한 뒤에 시작되므로 `ddl-auto: validate` race 가 발생하지 않습니다.
 
-### 단계
+종료/초기화:
+
+```bash
+docker compose down            # 컨테이너만 제거 (DB 볼륨 유지)
+docker compose down -v         # DB 볼륨까지 초기화
+```
 
 ```bash
 # 1) PostgreSQL 16 기동 (alarm/alarm/alarm_sender)
@@ -60,6 +68,8 @@ docker compose up -d postgres
 # 4) (별 터미널) 스턱 복구 배치 — 5초 주기 lease 만료 reclaim
 ./gradlew :bootstrap:notification:notification-batch:bootRun
 ```
+
+DB 접속 정보는 환경변수 `POSTGRES_HOST` / `POSTGRES_PORT` / `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` 로 오버라이드됩니다 (기본값은 `localhost:5432/alarm_sender`, `alarm/alarm`).
 
 테스트 실행:
 
