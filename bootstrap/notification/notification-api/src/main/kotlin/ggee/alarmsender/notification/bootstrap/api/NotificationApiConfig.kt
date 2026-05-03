@@ -1,7 +1,10 @@
 package ggee.alarmsender.notification.bootstrap.api
 
 import ggee.alarmsender.notification.domain.ExponentialBackoffRetryPolicy
+import ggee.alarmsender.notification.domain.NotificationOutboxRepository
 import ggee.alarmsender.notification.domain.RetryPolicy
+import ggee.alarmsender.notification.usecase.dispatchnotification.DbPollingOutboxPublisher
+import ggee.alarmsender.notification.usecase.dispatchnotification.OutboxPublisher
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.transaction.PlatformTransactionManager
@@ -23,6 +26,10 @@ class NotificationApiConfig {
 
     @Bean
     fun retryPolicy(): RetryPolicy = ExponentialBackoffRetryPolicy()
+
+    @Bean
+    fun outboxPublisher(repository: NotificationOutboxRepository): OutboxPublisher =
+        DbPollingOutboxPublisher(repository)
 
     /**
      * 항상 새 트랜잭션을 시작 (REQUIRES_NEW). API 가 직접 호출하지는 않지만,

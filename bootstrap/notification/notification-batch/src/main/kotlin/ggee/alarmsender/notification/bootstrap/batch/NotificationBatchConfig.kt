@@ -1,5 +1,8 @@
 package ggee.alarmsender.notification.bootstrap.batch
 
+import ggee.alarmsender.notification.domain.NotificationOutboxRepository
+import ggee.alarmsender.notification.usecase.dispatchnotification.DbPollingOutboxPublisher
+import ggee.alarmsender.notification.usecase.dispatchnotification.OutboxPublisher
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
@@ -18,4 +21,8 @@ class NotificationBatchConfig {
 
     @Bean
     fun clock(): Clock = Clock.systemUTC()
+
+    @Bean
+    fun outboxPublisher(repository: NotificationOutboxRepository): OutboxPublisher =
+        DbPollingOutboxPublisher(repository)
 }
