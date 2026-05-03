@@ -85,9 +85,16 @@ class SendNotificationService(
                 refType = command.refType,
                 refId = command.refId,
                 now = now,
+                scheduledAt = command.scheduledAt,
             ),
         )
-        outboxRepository.save(NotificationOutbox.create(notificationId = saved.requireId(), now = now))
+        outboxRepository.save(
+            NotificationOutbox.create(
+                notificationId = saved.requireId(),
+                now = now,
+                availableAt = command.scheduledAt ?: now,
+            ),
+        )
         historyRepository.append(
             NotificationHistory.of(
                 notificationId = saved.requireId(),

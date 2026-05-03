@@ -3,6 +3,7 @@ package ggee.alarmsender.notification.bootstrap.api
 import ggee.alarmsender.notification.domain.exception.NotificationAccessDeniedException
 import ggee.alarmsender.notification.domain.exception.NotificationDataInconsistencyException
 import ggee.alarmsender.notification.domain.exception.NotificationNotFoundException
+import ggee.alarmsender.notification.domain.exception.NotificationTemplateNotFoundException
 import ggee.alarmsender.notification.domain.exception.OperatorOnlyException
 import ggee.alarmsender.notification.domain.exception.RecipientForbiddenException
 import org.slf4j.LoggerFactory
@@ -23,6 +24,10 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(NotificationNotFoundException::class)
     fun notFound(e: NotificationNotFoundException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse(e.code, e.message ?: ""))
+
+    @ExceptionHandler(NotificationTemplateNotFoundException::class)
+    fun templateNotFound(e: NotificationTemplateNotFoundException): ResponseEntity<ErrorResponse> =
         ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse(e.code, e.message ?: ""))
 
     @ExceptionHandler(NotificationAccessDeniedException::class)

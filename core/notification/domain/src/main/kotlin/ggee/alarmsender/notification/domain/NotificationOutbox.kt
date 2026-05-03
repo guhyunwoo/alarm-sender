@@ -128,11 +128,11 @@ data class NotificationOutbox(
     fun requireId(): Long = id ?: error("영속화되지 않은 NotificationOutbox")
 
     companion object {
-        fun create(notificationId: Long, now: Instant): NotificationOutbox =
+        fun create(notificationId: Long, now: Instant, availableAt: Instant = now): NotificationOutbox =
             NotificationOutbox(
                 notificationId = notificationId,
                 status = OutboxStatus.PENDING,
-                availableAt = now,
+                availableAt = availableAt,
                 createdAt = now,
                 updatedAt = now,
             )

@@ -14,7 +14,7 @@
    │ SendNotificationUseCase
    │   ┌── 단일 트랜잭션 ──┐
    │   │ INSERT notification │
-   │   │ INSERT notification_outbox (status=PENDING, available_at=now)
+   │   │ INSERT notification_outbox (status=PENDING, available_at=scheduledAt 또는 now)
    │   │ INSERT notification_history (CREATED)
    │   └────────────────────┘
    │ 201 Created (PENDING) 즉시 ACK
@@ -25,7 +25,7 @@
    │   1) claimBatch — UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED) RETURNING *
    │   2) for each row: 외부 발송 호출 (트랜잭션 밖)
    │   3) 결과 반영 — row 단위 새 트랜잭션
-   │        SUCCESS → outbox DONE + notification SENT + history SENT
+   │        SUCCESS → 템플릿 렌더링 + outbox DONE + notification SENT + history SENT
    │        TRANSIENT → outbox PENDING(available_at = now+backoff) + history TRANSIENT_FAILURE
    │        EXHAUSTED → outbox DEAD + notification DEAD_LETTER + history EXHAUSTED
    ▼
@@ -44,16 +44,12 @@
 ### 2.1 `notification`
 
 ```
-PENDING ──worker claim──▶ IN_PROGRESS ──ok──▶ SENT
-                                │  ▲
-                                │  │  retry (transient failure)
-                                ▼  │
-                              FAILED (실태상 잠시 머무를 수 있는 단계 — 본 코드에서는 미사용)
-                                │
-                                └─ exceed max attempts ─▶ DEAD_LETTER ──manual retry──▶ PENDING
+PENDING ──dispatch success──▶ SENT
+   │
+   └─ exceed max attempts / permanent failure ─▶ DEAD_LETTER ──manual retry──▶ PENDING
 ```
 
-> 본 구현은 outbox 의 PENDING/IN_PROGRESS/DONE/DEAD 4상태로 충분하므로, notification 의 IN_PROGRESS 와 SENT 만 실질적으로 의미 있게 사용한다. FAILED 는 향후 부분 실패 모델 도입 여지를 위해 enum 에 남겨둔다.
+> 워커 처리 중간 상태는 outbox 의 PENDING/IN_PROGRESS/DONE/DEAD 로만 표현한다. 사용자 가시 상태인 notification 은 PENDING/SENT/DEAD_LETTER 만 가진다.
 
 ### 2.2 `notification_outbox`
 
@@ -87,7 +83,28 @@ PENDING ──worker claim──▶ IN_PROGRESS ──ok──▶ SENT
 
 ---
 
-## 4. 트랜잭션 경계 (`AGENTS.md` 트랜잭션 규칙 준수)
+## 4. 예약 발송
+
+발송 예약은 별도 큐나 스케줄러를 추가하지 않고 outbox 의 `available_at` 으로 표현한다.
+
+| 요청 | notification.scheduled_at | outbox.available_at | 워커 동작 |
+|---|---|---|---|
+| `scheduledAt` 없음 | NULL | now | 즉시 claim 대상 |
+| `scheduledAt` 있음 | 요청 시각 | 요청 시각 | `available_at <= now` 가 될 때까지 대기 |
+
+기존 워커의 polling 조건이 그대로 예약 발송 조건이 되므로, 예약 기능이 재시도/lease 복구 구조와 충돌하지 않는다.
+
+---
+
+## 5. 템플릿 렌더링
+
+`notification_template` 은 `(type, channel)` 별 subject/body template 을 가진다. EMAIL 발송 시 `{{courseName}}`, `{{recipientName}}` 같은 placeholder 를 notification payload 값으로 치환한다.
+
+템플릿 수정은 운영자 전용 API (`PUT /api/v1/notification-templates/{type}/{channel}`) 로만 가능하다. 템플릿이 없으면 기존 payload 의 `title`/`body` fallback 을 사용해 발송 흐름 자체는 멈추지 않는다.
+
+---
+
+## 6. 트랜잭션 경계 (`AGENTS.md` 트랜잭션 규칙 준수)
 
 | 단계 | 트랜잭션 | 이유 |
 |---|---|---|
@@ -99,7 +116,7 @@ PENDING ──worker claim──▶ IN_PROGRESS ──ok──▶ SENT
 
 ---
 
-## 5. 다중 워커 안전성
+## 7. 다중 워커 안전성
 
 - `SELECT … FOR UPDATE SKIP LOCKED` (PostgreSQL) — 동시 폴링 시 같은 row 잠긴 상태에서 락 대기 없이 다음 row 로 건너뛴다.
 - `lease_owner` + `lease_expires_at` — 워커가 사라져도 만료 시각 도래 시 다른 워커/배치가 PENDING 으로 reclaim.
@@ -109,7 +126,7 @@ PENDING ──worker claim──▶ IN_PROGRESS ──ok──▶ SENT
 
 ---
 
-## 6. 멱등성
+## 8. 멱등성
 
 | 방어선 | 위치 | 동작 |
 |---|---|---|
@@ -125,7 +142,7 @@ PENDING ──worker claim──▶ IN_PROGRESS ──ok──▶ SENT
 
 ---
 
-## 7. 운영 시나리오 매트릭스
+## 9. 운영 시나리오 매트릭스
 
 | 시나리오 | 보호 메커니즘 | 검증 테스트 |
 |---|---|---|
@@ -136,3 +153,5 @@ PENDING ──worker claim──▶ IN_PROGRESS ──ok──▶ SENT
 | 영구적 실패 | 한도 초과 시 DEAD_LETTER 격리 | DispatchNotificationServiceTest |
 | 서버 재시작 | DB 영속화 → 재기동 후 자동 재개 | (런타임 시나리오, 자동 재개는 워커 부팅이 곧 검증) |
 | 멀티 디바이스 동시 read | readAt 한 번만 set | ReadNotificationServiceTest, NotificationControllerTest |
+| 예약 발송 | outbox.available_at 이 scheduledAt 이후일 때만 claim | SendNotificationServiceTest, NotificationControllerTest |
+| 템플릿 관리/렌더링 | DB 템플릿 + payload placeholder 치환 | ManageNotificationTemplateServiceTest, DispatchNotificationServiceTest |

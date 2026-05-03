@@ -16,6 +16,7 @@ internal fun NotificationEntity.toDomain(objectMapper: ObjectMapper): Notificati
     status = status,
     readAt = readAt,
     createdAt = createdAt,
+    scheduledAt = scheduledAt,
     sentAt = sentAt,
 )
 
@@ -31,5 +32,6 @@ internal fun Notification.toEntity(objectMapper: ObjectMapper): NotificationEnti
     status = status,
     readAt = readAt,
     createdAt = createdAt,
+    scheduledAt = scheduledAt,
     sentAt = sentAt,
 )

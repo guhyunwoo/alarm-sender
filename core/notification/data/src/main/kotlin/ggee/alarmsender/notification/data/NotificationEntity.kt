@@ -53,6 +53,9 @@ class NotificationEntity(
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant,
 
+    @Column(name = "scheduled_at")
+    var scheduledAt: Instant? = null,
+
     @Column(name = "sent_at")
     var sentAt: Instant? = null,
 )

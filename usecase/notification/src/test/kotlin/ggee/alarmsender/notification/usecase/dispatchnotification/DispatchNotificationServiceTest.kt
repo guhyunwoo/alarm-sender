@@ -11,7 +11,7 @@ import ggee.alarmsender.notification.testfixture.NotificationFixtures
 import ggee.alarmsender.notification.teststub.InMemoryNotificationHistoryRepository
 import ggee.alarmsender.notification.teststub.InMemoryNotificationOutboxRepository
 import ggee.alarmsender.notification.teststub.InMemoryNotificationRepository
-import ggee.alarmsender.notification.usecase.dispatchnotification.DispatchNotificationCommand
+import ggee.alarmsender.notification.teststub.InMemoryNotificationTemplateRepository
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.transaction.PlatformTransactionManager
@@ -32,6 +32,7 @@ class DispatchNotificationServiceTest {
     private val notifications = InMemoryNotificationRepository()
     private val outbox = InMemoryNotificationOutboxRepository()
     private val history = InMemoryNotificationHistoryRepository()
+    private val templates = InMemoryNotificationTemplateRepository()
     private val emailSender = InMemoryEmailSender()
     private val retryPolicy = ExponentialBackoffRetryPolicy(maxAttempts = 5, baseDelay = Duration.ofMinutes(1))
 
@@ -44,6 +45,7 @@ class DispatchNotificationServiceTest {
         outboxPublisher = outboxPublisher,
         notificationRepository = notifications,
         historyRepository = history,
+        templateRepository = templates,
         emailSender = emailSender,
         retryPolicy = retryPolicy,
         clock = clock,
@@ -55,6 +57,7 @@ class DispatchNotificationServiceTest {
         notifications.clear()
         outbox.clear()
         history.clear()
+        templates.clear()
         emailSender.clear()
     }
 
@@ -80,6 +83,30 @@ class DispatchNotificationServiceTest {
         assertEquals(NotificationStatus.SENT, notificationAfter?.status)
         assertNotNull(notificationAfter?.sentAt)
         assertEquals(1, history.all().size)
+    }
+
+    @Test
+    fun `EMAIL 발송은 타입별 템플릿에 payload 를 치환해 제목과 본문을 만든다`() {
+        templates.save(
+            NotificationFixtures.template(
+                subjectTemplate = "수강 신청 완료: {{courseName}}",
+                bodyTemplate = "{{recipientName}}님, {{courseName}} 신청이 완료되었습니다.",
+            ),
+        )
+        val n = notifications.save(
+            NotificationFixtures.notification(
+                idempotencyKey = "templated",
+                refId = "templated",
+                payload = mapOf("recipientName" to "홍길동", "courseName" to "Kotlin 입문"),
+            ),
+        )
+        outbox.save(NotificationFixtures.outbox(notificationId = n.id!!, availableAt = now))
+
+        sut.execute(command())
+
+        val request = emailSender.all().single()
+        assertEquals("수강 신청 완료: Kotlin 입문", request.subject)
+        assertEquals("홍길동님, Kotlin 입문 신청이 완료되었습니다.", request.body)
     }
 
     @Test

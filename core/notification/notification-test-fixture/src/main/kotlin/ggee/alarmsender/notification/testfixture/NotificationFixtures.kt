@@ -5,6 +5,7 @@ import ggee.alarmsender.notification.domain.NotificationChannel
 import ggee.alarmsender.notification.domain.NotificationHistory
 import ggee.alarmsender.notification.domain.NotificationOutbox
 import ggee.alarmsender.notification.domain.NotificationStatus
+import ggee.alarmsender.notification.domain.NotificationTemplate
 import ggee.alarmsender.notification.domain.NotificationType
 import ggee.alarmsender.notification.domain.OutboxStatus
 import java.time.Instant
@@ -23,6 +24,7 @@ object NotificationFixtures {
         status: NotificationStatus = NotificationStatus.PENDING,
         readAt: Instant? = null,
         createdAt: Instant = Instant.parse("2026-05-02T10:00:00Z"),
+        scheduledAt: Instant? = null,
         sentAt: Instant? = null,
     ): Notification = Notification(
         id = id,
@@ -36,7 +38,24 @@ object NotificationFixtures {
         status = status,
         readAt = readAt,
         createdAt = createdAt,
+        scheduledAt = scheduledAt,
         sentAt = sentAt,
+    )
+
+    fun template(
+        id: Long? = null,
+        type: NotificationType = NotificationType.ENROLL_COMPLETED,
+        channel: NotificationChannel = NotificationChannel.EMAIL,
+        subjectTemplate: String = "수강 신청 완료: {{courseName}}",
+        bodyTemplate: String = "{{recipientName}}님, {{courseName}} 수강 신청이 완료되었습니다.",
+        updatedAt: Instant = Instant.parse("2026-05-02T10:00:00Z"),
+    ): NotificationTemplate = NotificationTemplate(
+        id = id,
+        type = type,
+        channel = channel,
+        subjectTemplate = subjectTemplate,
+        bodyTemplate = bodyTemplate,
+        updatedAt = updatedAt,
     )
 
     fun outbox(

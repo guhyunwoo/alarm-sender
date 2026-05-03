@@ -1,5 +1,8 @@
 package ggee.alarmsender.notification.domain.exception
 
+import ggee.alarmsender.notification.domain.NotificationChannel
+import ggee.alarmsender.notification.domain.NotificationType
+
 /**
  * 알림이 존재하지 않을 때 발생. 의미가 정확히 일치하는 JDK 표준 예외(NoSuchElementException) 를 상속한다.
  * `code` 프로퍼티는 API 응답에서 사용하는 안정적인 식별자.
@@ -8,6 +11,13 @@ class NotificationNotFoundException(
     val notificationId: Long,
 ) : NoSuchElementException("알림(id=$notificationId)을 찾을 수 없습니다") {
     val code: String = "NOTIFICATION_NOT_FOUND"
+}
+
+class NotificationTemplateNotFoundException(
+    val type: NotificationType,
+    val channel: NotificationChannel,
+) : NoSuchElementException("알림 템플릿(type=$type, channel=$channel)을 찾을 수 없습니다") {
+    val code: String = "NOTIFICATION_TEMPLATE_NOT_FOUND"
 }
 
 /**

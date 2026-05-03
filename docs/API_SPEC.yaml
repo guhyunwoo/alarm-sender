@@ -18,6 +18,7 @@ paths:
         알림 + Outbox 적재. 즉시 ACK 후 워커가 비동기 처리.
         `Idempotency-Key` 또는 `(recipientId, type, refType, refId)` 자연 키가 같으면 기존 알림을 그대로 반환 (200 OK).
         신규 적재 시 201 Created.
+        `scheduledAt` 이 있으면 해당 시각부터 워커 claim 대상이 된다.
       parameters:
         - in: header
           name: X-User-Id
@@ -105,11 +106,12 @@ paths:
           description: 요청자(운영자) ID
         - in: header
           name: X-User-Role
-          required: true
+          required: false
           schema:
             type: string
             enum: [USER, OPERATOR]
-          description: 운영자 권한 필요. OPERATOR 가 아니면 403.
+            default: USER
+          description: 운영자 권한 필요. 누락 또는 OPERATOR 외 값이면 USER 로 취급되어 403.
         - in: path
           name: id
           required: true
@@ -140,8 +142,79 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReadNotificationResponse'
+        '403': { description: 본인 외 사용자 시도 (NOTIFICATION_ACCESS_DENIED), content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '404': { description: 존재하지 않음 (NOTIFICATION_NOT_FOUND), content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
 
-components:
+  /api/v1/notification-templates:
+    get:
+      summary: 알림 템플릿 목록 조회
+      responses:
+        '200':
+          description: 타입/채널별 템플릿 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/NotificationTemplateResponse' }
+
+  /api/v1/notification-templates/{type}/{channel}:
+    get:
+      summary: 알림 템플릿 단건 조회
+      parameters:
+        - in: path
+          name: type
+          required: true
+          schema:
+            type: string
+            enum: [ENROLL_COMPLETED, PAYMENT_CONFIRMED, COURSE_STARTING_TOMORROW, ENROLL_CANCELLED]
+        - in: path
+          name: channel
+          required: true
+          schema:
+            type: string
+            enum: [EMAIL, IN_APP]
+      responses:
+        '200': { description: 조회 성공, content: { application/json: { schema: { $ref: '#/components/schemas/NotificationTemplateResponse' } } } }
+        '404': { description: 템플릿 없음 (NOTIFICATION_TEMPLATE_NOT_FOUND), content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+
+    put:
+      summary: 알림 템플릿 수정 또는 생성 (운영자 전용)
+      parameters:
+        - in: header
+          name: X-User-Id
+          required: true
+          schema: { type: string }
+        - in: header
+          name: X-User-Role
+          required: false
+          schema:
+            type: string
+            enum: [USER, OPERATOR]
+            default: USER
+        - in: path
+          name: type
+          required: true
+          schema:
+            type: string
+            enum: [ENROLL_COMPLETED, PAYMENT_CONFIRMED, COURSE_STARTING_TOMORROW, ENROLL_CANCELLED]
+        - in: path
+          name: channel
+          required: true
+          schema:
+            type: string
+            enum: [EMAIL, IN_APP]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateNotificationTemplateRequest'
+      responses:
+        '200': { description: 수정 또는 생성됨, content: { application/json: { schema: { $ref: '#/components/schemas/NotificationTemplateResponse' } } } }
+        '400': { description: 입력 검증 실패, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '403': { description: OPERATOR 권한 부재 (OPERATOR_ONLY), content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+
+  components:
   schemas:
     CreateNotificationRequest:
       type: object
@@ -166,6 +239,11 @@ components:
         refId:
           type: string
           example: "100"
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 지정 시 해당 시각부터 발송 대상이 된다. 미지정 시 즉시 발송 대상.
 
     NotificationResponse:
       type: object
@@ -179,9 +257,10 @@ components:
         refId: { type: string, nullable: true }
         status:
           type: string
-          enum: [PENDING, IN_PROGRESS, SENT, FAILED, DEAD_LETTER]
+          enum: [PENDING, SENT, DEAD_LETTER]
         readAt: { type: string, format: date-time, nullable: true }
         createdAt: { type: string, format: date-time }
+        scheduledAt: { type: string, format: date-time, nullable: true }
         sentAt: { type: string, format: date-time, nullable: true }
 
     ReadNotificationResponse:
@@ -190,6 +269,27 @@ components:
         id: { type: integer, format: int64 }
         readAt: { type: string, format: date-time }
         newlyRead: { type: boolean }
+
+    NotificationTemplateResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        type:
+          type: string
+          enum: [ENROLL_COMPLETED, PAYMENT_CONFIRMED, COURSE_STARTING_TOMORROW, ENROLL_CANCELLED]
+        channel:
+          type: string
+          enum: [EMAIL, IN_APP]
+        subjectTemplate: { type: string, example: "수강 신청 완료: {{courseName}}" }
+        bodyTemplate: { type: string, example: "{{recipientName}}님, {{courseName}} 수강 신청이 완료되었습니다." }
+        updatedAt: { type: string, format: date-time }
+
+    UpdateNotificationTemplateRequest:
+      type: object
+      required: [subjectTemplate, bodyTemplate]
+      properties:
+        subjectTemplate: { type: string }
+        bodyTemplate: { type: string }
 
     ErrorResponse:
       type: object
@@ -201,6 +301,7 @@ components:
           type: string
           enum:
             - NOTIFICATION_NOT_FOUND        # 404 — 존재하지 않는 알림
+            - NOTIFICATION_TEMPLATE_NOT_FOUND # 404 — 존재하지 않는 템플릿
             - NOTIFICATION_ACCESS_DENIED    # 403 — 단일 알림 권한 거부
             - RECIPIENT_FORBIDDEN           # 403 — 다른 수신자 목록 조회 시도
             - OPERATOR_ONLY                 # 403 — 운영자 전용 작업을 일반 USER 가 시도

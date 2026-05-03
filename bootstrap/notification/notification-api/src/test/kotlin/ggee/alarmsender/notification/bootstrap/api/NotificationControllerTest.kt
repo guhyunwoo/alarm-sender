@@ -179,6 +179,78 @@ class NotificationControllerTest @Autowired constructor(
     }
 
     @Test
+    fun `scheduledAt 이 있는 발송 요청은 예약 시각을 응답에 포함한다`() {
+        val body = """
+            {
+              "recipientId": "u1",
+              "type": "ENROLL_COMPLETED",
+              "channel": "EMAIL",
+              "payload": {},
+              "refType": "ENROLLMENT",
+              "refId": "scheduled-1",
+              "scheduledAt": "2026-05-03T12:00:00Z"
+            }
+        """.trimIndent()
+
+        val resp = rest.postForEntity(
+            "/api/v1/notifications",
+            HttpEntity(body, headers("u1", "scheduled-1")),
+            Map::class.java,
+        )
+
+        assertEquals(HttpStatus.CREATED, resp.statusCode)
+        assertEquals("2026-05-03T12:00:00Z", resp.body!!["scheduledAt"])
+    }
+
+    @Test
+    fun `OPERATOR 는 템플릿을 수정하고 조회할 수 있다`() {
+        val body = """
+            {
+              "subjectTemplate": "변경된 제목 {{courseName}}",
+              "bodyTemplate": "{{courseName}} 변경된 본문"
+            }
+        """.trimIndent()
+
+        val update = rest.exchange(
+            "/api/v1/notification-templates/ENROLL_COMPLETED/EMAIL",
+            HttpMethod.PUT,
+            HttpEntity(body, headers("ops-1", role = "OPERATOR")),
+            Map::class.java,
+        )
+
+        assertEquals(HttpStatus.OK, update.statusCode)
+        assertEquals("변경된 제목 {{courseName}}", update.body!!["subjectTemplate"])
+
+        val get = rest.exchange(
+            "/api/v1/notification-templates/ENROLL_COMPLETED/EMAIL",
+            HttpMethod.GET,
+            HttpEntity<Void>(headers("u1")),
+            Map::class.java,
+        )
+        assertEquals("변경된 제목 {{courseName}}", get.body!!["subjectTemplate"])
+    }
+
+    @Test
+    fun `USER 는 템플릿을 수정할 수 없다`() {
+        val body = """
+            {
+              "subjectTemplate": "제목",
+              "bodyTemplate": "본문"
+            }
+        """.trimIndent()
+
+        val resp = rest.exchange(
+            "/api/v1/notification-templates/ENROLL_COMPLETED/EMAIL",
+            HttpMethod.PUT,
+            HttpEntity(body, headers("u1")),
+            Map::class.java,
+        )
+
+        assertEquals(HttpStatus.FORBIDDEN, resp.statusCode)
+        assertEquals("OPERATOR_ONLY", resp.body!!["code"])
+    }
+
+    @Test
     fun `필수 헤더 누락은 400 BAD_REQUEST 로 응답한다`() {
         val headers = HttpHeaders().apply {
             contentType = MediaType.APPLICATION_JSON

@@ -53,6 +53,7 @@ class NotificationController(
             idempotencyKey = idempotencyKey,
             refType = request.refType,
             refId = request.refId,
+            scheduledAt = request.scheduledAt,
         )
         val result = sendUseCase.execute(command)
         val status = if (result.deduplicated) HttpStatus.OK else HttpStatus.CREATED

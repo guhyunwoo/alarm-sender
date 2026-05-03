@@ -21,6 +21,7 @@ data class Notification(
     val status: NotificationStatus,
     val readAt: Instant? = null,
     val createdAt: Instant,
+    val scheduledAt: Instant? = null,
     val sentAt: Instant? = null,
 ) {
     /**
@@ -59,6 +60,7 @@ data class Notification(
             refType: String?,
             refId: String?,
             now: Instant,
+            scheduledAt: Instant? = null,
         ): Notification = Notification(
             recipientId = recipientId,
             type = type,
@@ -69,6 +71,7 @@ data class Notification(
             refId = refId,
             status = NotificationStatus.PENDING,
             createdAt = now,
+            scheduledAt = scheduledAt,
         )
     }
 }

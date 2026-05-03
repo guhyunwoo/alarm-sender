@@ -8,7 +8,9 @@ import ggee.alarmsender.notification.domain.NotificationHistoryRepository
 import ggee.alarmsender.notification.domain.NotificationOutbox
 import ggee.alarmsender.notification.domain.NotificationRepository
 import ggee.alarmsender.notification.domain.NotificationStatus
+import ggee.alarmsender.notification.domain.NotificationTemplateRepository
 import ggee.alarmsender.notification.domain.OutboxStatus
+import ggee.alarmsender.notification.domain.RenderedNotification
 import ggee.alarmsender.notification.domain.RetryPolicy
 import ggee.alarmsender.notification.domain.exception.NotificationDataInconsistencyException
 import ggee.alarmsender.notification.platform.email.EmailRequest
@@ -41,6 +43,7 @@ class DispatchNotificationService(
     private val outboxPublisher: OutboxPublisher,
     private val notificationRepository: NotificationRepository,
     private val historyRepository: NotificationHistoryRepository,
+    private val templateRepository: NotificationTemplateRepository,
     private val emailSender: EmailSender,
     private val retryPolicy: RetryPolicy,
     private val clock: Clock,
@@ -112,11 +115,12 @@ class DispatchNotificationService(
 
     private fun trySend(notification: Notification): EmailSendResult = when (notification.channel) {
         NotificationChannel.EMAIL -> runCatching {
+            val rendered = render(notification)
             emailSender.send(
                 EmailRequest(
                     to = notification.recipientId,
-                    subject = notification.payload["title"]?.toString() ?: notification.type.name,
-                    body = notification.payload["body"]?.toString() ?: notification.payload.toString(),
+                    subject = rendered.subject,
+                    body = rendered.body,
                 ),
             )
         }.getOrElse { ex -> EmailSendResult.TransientFailure(ex.message ?: ex.javaClass.simpleName) }
@@ -125,6 +129,14 @@ class DispatchNotificationService(
         // 클라이언트는 GET /api/v1/notifications 로 polling 하여 수신.
         NotificationChannel.IN_APP -> EmailSendResult.Success
     }
+
+    private fun render(notification: Notification) =
+        templateRepository.findByTypeAndChannel(notification.type, notification.channel)
+            ?.render(notification.payload)
+            ?: RenderedNotification(
+                subject = notification.payload["title"]?.toString() ?: notification.type.name,
+                body = notification.payload["body"]?.toString() ?: notification.payload.toString(),
+            )
 
     private fun applyResult(outbox: NotificationOutbox, notification: Notification, result: EmailSendResult): Outcome =
         // 콜백이 항상 non-null Outcome 반환하므로 `!!` 안전. 실패 시 콜백 안에서 예외가 던져짐 (외부 try/catch 가 처리)

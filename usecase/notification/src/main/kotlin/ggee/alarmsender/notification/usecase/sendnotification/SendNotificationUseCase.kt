@@ -3,6 +3,7 @@ package ggee.alarmsender.notification.usecase.sendnotification
 import ggee.alarmsender.notification.domain.Notification
 import ggee.alarmsender.notification.domain.NotificationChannel
 import ggee.alarmsender.notification.domain.NotificationType
+import java.time.Instant
 
 interface SendNotificationUseCase {
     fun execute(command: SendNotificationCommand): SendNotificationResult
@@ -16,6 +17,7 @@ data class SendNotificationCommand(
     val idempotencyKey: String?,
     val refType: String?,
     val refId: String?,
+    val scheduledAt: Instant?,
 )
 
 data class SendNotificationResult(

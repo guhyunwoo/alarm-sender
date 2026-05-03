@@ -42,6 +42,7 @@ class SendNotificationServiceTest {
         recipientId: String = "user-1",
         idempotencyKey: String? = "idem-1",
         refId: String? = "100",
+        scheduledAt: Instant? = null,
     ) = SendNotificationCommand(
         recipientId = recipientId,
         type = NotificationType.ENROLL_COMPLETED,
@@ -50,6 +51,7 @@ class SendNotificationServiceTest {
         idempotencyKey = idempotencyKey,
         refType = "ENROLLMENT",
         refId = refId,
+        scheduledAt = scheduledAt,
     )
 
     @Test
@@ -96,6 +98,16 @@ class SendNotificationServiceTest {
         assertFalse(first.deduplicated)
         assertFalse(second.deduplicated)
         assertEquals(2, notifications.all().size)
+    }
+
+    @Test
+    fun `scheduledAt 이 있으면 notification 에 저장하고 outbox availableAt 을 예약 시각으로 설정한다`() {
+        val scheduledAt = now.plusSeconds(3600)
+
+        val result = sut.execute(newCommand(scheduledAt = scheduledAt))
+
+        assertEquals(scheduledAt, result.notification.scheduledAt)
+        assertEquals(scheduledAt, outbox.all().single().availableAt)
     }
 
     /** TransactionTemplate 가 콜백을 그대로 실행하도록 만드는 테스트용 fake. */
