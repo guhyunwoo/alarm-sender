@@ -37,13 +37,15 @@ class ReadNotificationService(
         }
 
         val now = Instant.now(clock)
-        if (!repository.markAsReadIfUnread(notification.requireId(), now)) {
-            val alreadyRead = repository.findById(command.notificationId)
-                ?: throw NotificationNotFoundException(command.notificationId)
-            return ReadNotificationResult(alreadyRead, newlyRead = false)
+        val effectiveReadAt = repository.markAsReadIfUnread(notification.requireId(), now)
+            ?: throw NotificationNotFoundException(command.notificationId)
+
+        val newlyRead = effectiveReadAt == now
+        if (!newlyRead) {
+            return ReadNotificationResult(notification.copy(readAt = effectiveReadAt), newlyRead = false)
         }
 
-        val updated = notification.markAsRead(now)
+        val updated = notification.markAsRead(effectiveReadAt)
         historyRepository.append(
             NotificationHistory.of(
                 notificationId = updated.requireId(),

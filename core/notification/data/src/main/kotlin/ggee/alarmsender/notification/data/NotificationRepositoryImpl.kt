@@ -50,15 +50,29 @@ class NotificationRepositoryImpl(
         return saved.toDomain(objectMapper)
     }
 
-    override fun markAsReadIfUnread(id: Long, readAt: Instant): Boolean =
-        jdbcTemplate.update(
-            """
+    /**
+     * CTE 로 한 번의 RT 안에 (a) 조건부 UPDATE 시도, (b) effective `read_at` 조회를 모두 수행.
+     * COALESCE 가 우리가 방금 set 한 값과 기존 값 중 살아있는 쪽을 돌려준다.
+     * 호출자가 JPA 1차 캐시로 재조회하다 stale `read_at = NULL` 을 볼 위험이 없다.
+     */
+    override fun markAsReadIfUnread(id: Long, readAt: Instant): Instant? {
+        val sql = """
+            WITH updated AS (
                 UPDATE notification
                 SET read_at = ?
                 WHERE id = ?
                   AND read_at IS NULL
-            """.trimIndent(),
-            Timestamp.from(readAt),
-            id,
-        ) == 1
+                RETURNING read_at
+            )
+            SELECT COALESCE((SELECT read_at FROM updated), n.read_at) AS effective_read_at
+            FROM notification n
+            WHERE n.id = ?
+        """.trimIndent()
+        val results = jdbcTemplate.query(
+            sql,
+            { rs, _ -> rs.getTimestamp("effective_read_at")?.toInstant() },
+            Timestamp.from(readAt), id, id,
+        )
+        return results.firstOrNull()
+    }
 }

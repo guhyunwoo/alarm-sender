@@ -55,17 +55,22 @@ class InMemoryNotificationRepository : NotificationRepository {
         return notification
     }
 
-    override fun markAsReadIfUnread(id: Long, readAt: Instant): Boolean {
-        var updated = false
+    override fun markAsReadIfUnread(id: Long, readAt: Instant): Instant? {
+        var effective: Instant? = null
         store.compute(id) { _, current ->
-            if (current == null || current.readAt != null) {
-                current
-            } else {
-                updated = true
-                current.markAsRead(readAt)
+            when {
+                current == null -> null
+                current.readAt != null -> {
+                    effective = current.readAt
+                    current
+                }
+                else -> {
+                    effective = readAt
+                    current.markAsRead(readAt)
+                }
             }
         }
-        return updated
+        return effective
     }
 
     fun clear() {

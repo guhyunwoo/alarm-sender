@@ -1,5 +1,6 @@
 package ggee.alarmsender.notification.data
 
+import ggee.alarmsender.notification.domain.NotificationRepository
 import ggee.alarmsender.notification.domain.NotificationType
 import ggee.alarmsender.notification.testfixture.NotificationFixtures
 import org.junit.jupiter.api.BeforeEach
@@ -19,7 +20,7 @@ import kotlin.test.assertTrue
 @SpringBootTest(classes = [DataLayerTestApp::class])
 @Testcontainers
 class NotificationRepositoryImplTest @Autowired constructor(
-    private val sut: ggee.alarmsender.notification.domain.NotificationRepository,
+    private val sut: NotificationRepository,
     private val jdbcTemplate: JdbcTemplate,
 ) : PostgresIntegrationTest() {
 
@@ -151,14 +152,22 @@ class NotificationRepositoryImplTest @Autowired constructor(
     }
 
     @Test
-    fun `markAsReadIfUnread 는 최초 1회만 true 를 반환하고 readAt 을 갱신한다`() {
+    fun `markAsReadIfUnread 는 최초 set 시 입력 readAt 을 돌려주고 이후엔 기존 readAt 을 그대로 돌려준다`() {
         val saved = sut.save(NotificationFixtures.notification(idempotencyKey = "k1"))
         val readAt = Instant.parse("2026-05-02T10:30:00Z")
 
-        assertEquals(true, sut.markAsReadIfUnread(saved.id!!, readAt))
-        assertEquals(false, sut.markAsReadIfUnread(saved.id!!, readAt.plusSeconds(1)))
+        // 최초 set — 우리가 넘긴 readAt 이 그대로 effective 값
+        assertEquals(readAt, sut.markAsReadIfUnread(saved.id!!, readAt))
+        // 이미 읽음 — 두 번째 호출의 입력은 무시되고 첫 read 의 readAt 이 돌아온다
+        assertEquals(readAt, sut.markAsReadIfUnread(saved.id!!, readAt.plusSeconds(1)))
 
         val refetched = sut.findById(saved.id!!)
         assertEquals(readAt, refetched?.readAt)
+    }
+
+    @Test
+    fun `markAsReadIfUnread 는 row 가 없으면 null 을 돌려준다`() {
+        val readAt = Instant.parse("2026-05-02T10:30:00Z")
+        assertNull(sut.markAsReadIfUnread(id = 9_999_999, readAt = readAt))
     }
 }
