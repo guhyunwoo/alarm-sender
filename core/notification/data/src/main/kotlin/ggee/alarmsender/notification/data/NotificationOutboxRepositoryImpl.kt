@@ -3,6 +3,7 @@ package ggee.alarmsender.notification.data
 import ggee.alarmsender.notification.domain.NotificationOutbox
 import ggee.alarmsender.notification.domain.NotificationOutboxRepository
 import ggee.alarmsender.notification.domain.OutboxStatus
+import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.jdbc.core.RowMapper
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
@@ -85,9 +86,43 @@ class NotificationOutboxRepositoryImpl(
         return jdbc.query(sql, params, OUTBOX_ROW_MAPPER)
     }
 
+    /**
+     * `WHERE id=? AND version=?` 단일 SQL 로 stale write 차단.
+     * `claimBatch` 와 동일하게 raw UPDATE … RETURNING * 로 1-RT.
+     * 영향 row=0 이면 `OptimisticLockingFailureException` 으로 워커 try/catch 가 받아 row 격리한다.
+     */
     override fun update(outbox: NotificationOutbox): NotificationOutbox {
-        outbox.requireId()
-        return jpa.save(outbox.toEntity()).toDomain()
+        val id = outbox.requireId()
+        val sql = """
+            UPDATE notification_outbox
+            SET status = :status,
+                available_at = :availableAt,
+                attempt_count = :attemptCount,
+                lease_owner = :leaseOwner,
+                lease_expires_at = :leaseExpiresAt,
+                last_error = :lastError,
+                updated_at = :updatedAt,
+                version = version + 1
+            WHERE id = :id AND version = :expectedVersion
+            RETURNING id, notification_id, status, available_at, attempt_count,
+                      lease_owner, lease_expires_at, last_error, created_at, updated_at, version
+        """.trimIndent()
+
+        val params = MapSqlParameterSource()
+            .addValue("id", id)
+            .addValue("expectedVersion", outbox.version)
+            .addValue("status", outbox.status.name)
+            .addValue("availableAt", Timestamp.from(outbox.availableAt))
+            .addValue("attemptCount", outbox.attemptCount)
+            .addValue("leaseOwner", outbox.leaseOwner)
+            .addValue("leaseExpiresAt", outbox.leaseExpiresAt?.let { Timestamp.from(it) })
+            .addValue("lastError", outbox.lastError)
+            .addValue("updatedAt", Timestamp.from(outbox.updatedAt))
+
+        return jdbc.query(sql, params, OUTBOX_ROW_MAPPER).firstOrNull()
+            ?: throw OptimisticLockingFailureException(
+                "NotificationOutbox(id=$id, version=${outbox.version}) — 다른 트랜잭션이 먼저 갱신함"
+            )
     }
 
     companion object {
