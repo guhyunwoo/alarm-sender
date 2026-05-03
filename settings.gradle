@@ -1,1 +1,23 @@
 rootProject.name = 'alarm-sender'
+
+// bootstrap (실행 가능한 Spring Boot 애플리케이션)
+include 'bootstrap:notification:notification-api'
+include 'bootstrap:notification:notification-worker'
+include 'bootstrap:notification:notification-batch'
+
+// core 도메인 모듈
+include 'core:notification:domain'
+include 'core:notification:data'
+include 'core:notification:notification-test-fixture'
+include 'core:notification:notification-test-stub'
+
+// usecase — 알림 도메인 use case 통합 모듈 (use case 단위는 패키지로 구분)
+include 'usecase:notification'
+
+// infrastructure (DB, Web 등 기술 설정)
+include 'infrastructure:jpa-postgres'
+
+// platform (외부 서비스 연동)
+include 'platform:email:email-interface'
+include 'platform:email:email-impl'
+include 'platform:email:email-test-stub'

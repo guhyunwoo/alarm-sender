@@ -1,0 +1,185 @@
+openapi: 3.0.3
+info:
+  title: 알림 발송 시스템 API
+  version: 0.0.1-SNAPSHOT
+  description: |
+    라이브클래스 백엔드 셀 채용 과제 C — 알림 발송 시스템.
+    인증은 `X-User-Id` 헤더 기반의 단순 식별 (과제 허용 범위).
+
+servers:
+  - url: http://localhost:8080
+    description: 로컬
+
+paths:
+  /api/v1/notifications:
+    post:
+      summary: 알림 발송 요청
+      description: |
+        알림 + Outbox 적재. 즉시 ACK 후 워커가 비동기 처리.
+        `Idempotency-Key` 또는 `(recipientId, type, refType, refId)` 자연 키가 같으면 기존 알림을 그대로 반환 (200 OK).
+        신규 적재 시 201 Created.
+      parameters:
+        - in: header
+          name: X-User-Id
+          required: true
+          schema: { type: string }
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema: { type: string }
+          description: 클라이언트 재시도 안전을 위한 멱등성 키.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateNotificationRequest'
+      responses:
+        '201': { description: 신규 적재됨, content: { application/json: { schema: { $ref: '#/components/schemas/NotificationResponse' } } } }
+        '200': { description: 멱등성/자연 키 중복으로 기존 알림 반환, content: { application/json: { schema: { $ref: '#/components/schemas/NotificationResponse' } } } }
+        '400': { description: 입력 검증 실패, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+
+    get:
+      summary: 본인 알림 목록 조회
+      parameters:
+        - in: header
+          name: X-User-Id
+          required: true
+          schema: { type: string }
+        - in: query
+          name: recipientId
+          required: false
+          schema: { type: string }
+          description: 미지정 시 본인. 본인 외 지정 시 400.
+        - in: query
+          name: unreadOnly
+          schema: { type: boolean, default: false }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20, minimum: 1, maximum: 200 }
+        - in: query
+          name: offset
+          schema: { type: integer, default: 0, minimum: 0 }
+      responses:
+        '200':
+          description: 최신 createdAt 내림차순
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/NotificationResponse' }
+
+  /api/v1/notifications/{id}:
+    get:
+      summary: 단건 조회
+      parameters:
+        - in: header
+          name: X-User-Id
+          required: true
+          schema: { type: string }
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200': { description: 조회 성공, content: { application/json: { schema: { $ref: '#/components/schemas/NotificationResponse' } } } }
+        '403': { description: 본인 외 사용자 시도, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '404': { description: 존재하지 않음, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+
+  /api/v1/notifications/{id}/retry:
+    post:
+      summary: DEAD_LETTER 알림 수동 재시도
+      description: |
+        DEAD_LETTER 격리된 알림을 본인 의지로 재시도. attempt_count 가 0 으로 리셋되어
+        다시 5회까지 자동 재시도됨. DEAD_LETTER 가 아닌 알림에 호출 시 400.
+      parameters:
+        - in: header
+          name: X-User-Id
+          required: true
+          schema: { type: string }
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200': { description: PENDING 으로 복귀, content: { application/json: { schema: { $ref: '#/components/schemas/NotificationResponse' } } } }
+        '400': { description: DEAD_LETTER 가 아닌 상태에서 호출, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '403': { description: 본인 외 사용자 시도, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '404': { description: 존재하지 않는 알림, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+
+  /api/v1/notifications/{id}/read:
+    post:
+      summary: 읽음 처리 (멀티 디바이스 멱등)
+      description: 첫 호출은 readAt 을 set, 이후 호출은 no-op (newlyRead=false 반환).
+      parameters:
+        - in: header
+          name: X-User-Id
+          required: true
+          schema: { type: string }
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: 처리 결과
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadNotificationResponse'
+
+components:
+  schemas:
+    CreateNotificationRequest:
+      type: object
+      required: [recipientId, type, channel]
+      properties:
+        recipientId:
+          type: string
+          example: user-123
+        type:
+          type: string
+          enum: [ENROLL_COMPLETED, PAYMENT_CONFIRMED, COURSE_STARTING_TOMORROW, ENROLL_CANCELLED]
+        channel:
+          type: string
+          enum: [EMAIL, IN_APP]
+        payload:
+          type: object
+          additionalProperties: true
+          example: { title: "수강 신청 완료", body: "Spring Boot 입문" }
+        refType:
+          type: string
+          example: ENROLLMENT
+        refId:
+          type: string
+          example: "100"
+
+    NotificationResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        recipientId: { type: string }
+        type: { type: string }
+        channel: { type: string }
+        payload: { type: object, additionalProperties: true }
+        refType: { type: string, nullable: true }
+        refId: { type: string, nullable: true }
+        status:
+          type: string
+          enum: [PENDING, IN_PROGRESS, SENT, FAILED, DEAD_LETTER]
+        readAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        sentAt: { type: string, format: date-time, nullable: true }
+
+    ReadNotificationResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        readAt: { type: string, format: date-time }
+        newlyRead: { type: boolean }
+
+    ErrorResponse:
+      type: object
+      properties:
+        code: { type: string }
+        message: { type: string }

@@ -1,0 +1,3 @@
+// 순수 Kotlin 도메인 모듈 — 외부 의존 없음 (AGENTS.md 의 'core:<domain>:domain 참조 가능 대상: 없음' 규칙)
+dependencies {
+}
