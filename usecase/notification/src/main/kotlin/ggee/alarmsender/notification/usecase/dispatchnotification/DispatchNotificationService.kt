@@ -6,7 +6,6 @@ import ggee.alarmsender.notification.domain.NotificationChannel
 import ggee.alarmsender.notification.domain.NotificationHistory
 import ggee.alarmsender.notification.domain.NotificationHistoryRepository
 import ggee.alarmsender.notification.domain.NotificationOutbox
-import ggee.alarmsender.notification.domain.NotificationOutboxRepository
 import ggee.alarmsender.notification.domain.NotificationRepository
 import ggee.alarmsender.notification.domain.NotificationStatus
 import ggee.alarmsender.notification.domain.OutboxStatus
@@ -32,7 +31,7 @@ import java.time.Instant
  */
 @Service
 class DispatchNotificationService(
-    private val outboxRepository: NotificationOutboxRepository,
+    private val outboxPublisher: OutboxPublisher,
     private val notificationRepository: NotificationRepository,
     private val historyRepository: NotificationHistoryRepository,
     private val emailSender: EmailSender,
@@ -43,7 +42,7 @@ class DispatchNotificationService(
 
     override fun execute(command: DispatchNotificationCommand): DispatchNotificationResult {
         val now = Instant.now(clock)
-        val claimed = outboxRepository.claimBatch(command.workerId, now, command.leaseDuration, command.batchSize)
+        val claimed = outboxPublisher.claim(command.workerId, now, command.leaseDuration, command.batchSize)
         if (claimed.isEmpty()) {
             return DispatchNotificationResult(claimed = 0, succeeded = 0, failed = 0, deadLettered = 0)
         }
@@ -89,7 +88,7 @@ class DispatchNotificationService(
             val now = Instant.now(clock)
             when (result) {
                 is EmailSendResult.Success -> {
-                    outboxRepository.update(outbox.markSucceeded(now))
+                    outboxPublisher.update(outbox.markSucceeded(now))
                     notificationRepository.update(notification.markSent(now))
                     historyRepository.append(
                         NotificationHistory.of(
@@ -104,7 +103,7 @@ class DispatchNotificationService(
                 }
                 is EmailSendResult.TransientFailure -> {
                     val updatedOutbox = outbox.markFailedTransient(result.reason, now, retryPolicy)
-                    outboxRepository.update(updatedOutbox)
+                    outboxPublisher.update(updatedOutbox)
                     if (updatedOutbox.status == OutboxStatus.DEAD) {
                         notificationRepository.update(notification.markDeadLetter())
                         historyRepository.append(

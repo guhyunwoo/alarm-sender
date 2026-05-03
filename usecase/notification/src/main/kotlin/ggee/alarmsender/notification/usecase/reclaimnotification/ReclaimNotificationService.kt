@@ -3,10 +3,7 @@ package ggee.alarmsender.notification.usecase.reclaimnotification
 import ggee.alarmsender.notification.domain.HistoryReason
 import ggee.alarmsender.notification.domain.NotificationHistory
 import ggee.alarmsender.notification.domain.NotificationHistoryRepository
-import ggee.alarmsender.notification.domain.NotificationOutboxRepository
-import ggee.alarmsender.notification.usecase.reclaimnotification.ReclaimCommand
-import ggee.alarmsender.notification.usecase.reclaimnotification.ReclaimNotificationUseCase
-import ggee.alarmsender.notification.usecase.reclaimnotification.ReclaimResult
+import ggee.alarmsender.notification.usecase.dispatchnotification.OutboxPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
@@ -20,7 +17,7 @@ import java.time.Instant
  */
 @Service
 class ReclaimNotificationService(
-    private val outboxRepository: NotificationOutboxRepository,
+    private val outboxPublisher: OutboxPublisher,
     private val historyRepository: NotificationHistoryRepository,
     private val clock: Clock,
 ) : ReclaimNotificationUseCase {
@@ -28,10 +25,10 @@ class ReclaimNotificationService(
     @Transactional
     override fun execute(command: ReclaimCommand): ReclaimResult {
         val now = Instant.now(clock)
-        val expired = outboxRepository.findExpired(now, command.limit)
+        val expired = outboxPublisher.findExpired(now, command.limit)
         expired.forEach { outbox ->
             val reclaimed = outbox.reclaim(now)
-            outboxRepository.update(reclaimed)
+            outboxPublisher.update(reclaimed)
             historyRepository.append(
                 NotificationHistory.of(
                     notificationId = outbox.notificationId,

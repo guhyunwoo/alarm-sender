@@ -5,7 +5,7 @@ import ggee.alarmsender.notification.testfixture.NotificationFixtures
 import ggee.alarmsender.notification.teststub.InMemoryNotificationHistoryRepository
 import ggee.alarmsender.notification.teststub.InMemoryNotificationOutboxRepository
 import ggee.alarmsender.notification.teststub.InMemoryNotificationRepository
-import ggee.alarmsender.notification.usecase.reclaimnotification.ReclaimCommand
+import ggee.alarmsender.notification.usecase.dispatchnotification.DbPollingOutboxPublisher
 import org.junit.jupiter.api.Test
 import java.time.Clock
 import java.time.Instant
@@ -18,9 +18,10 @@ class ReclaimNotificationServiceTest {
     private val clock = Clock.fixed(now, ZoneOffset.UTC)
     private val notifications = InMemoryNotificationRepository()
     private val outbox = InMemoryNotificationOutboxRepository()
+    private val outboxPublisher = DbPollingOutboxPublisher(outbox)
     private val history = InMemoryNotificationHistoryRepository()
 
-    private val sut = ReclaimNotificationService(outbox, history, clock)
+    private val sut = ReclaimNotificationService(outboxPublisher, history, clock)
 
     @Test
     fun `lease 만료 IN_PROGRESS row 만 PENDING 으로 복귀시킨다`() {

@@ -37,8 +37,10 @@ class DispatchNotificationServiceTest {
     /** 단위 테스트에서는 트랜잭션을 흉내 내지 않고 콜백을 그대로 실행. */
     private val transactionTemplate = TransactionTemplate(NoOpTransactionManager())
 
+    private val outboxPublisher: OutboxPublisher = DbPollingOutboxPublisher(outbox)
+
     private val sut = DispatchNotificationService(
-        outboxRepository = outbox,
+        outboxPublisher = outboxPublisher,
         notificationRepository = notifications,
         historyRepository = history,
         emailSender = emailSender,
