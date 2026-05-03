@@ -82,7 +82,7 @@ docker compose up -d postgres
 | GET | `/api/v1/notifications/{id}` | 단건 조회 (본인만 가능 → 외 403) |
 | GET | `/api/v1/notifications?unreadOnly=&limit=&offset=` | 본인 알림 목록 (최신순) |
 | POST | `/api/v1/notifications/{id}/read` | 읽음 처리 (멀티 디바이스 멱등) |
-| POST | `/api/v1/notifications/{id}/retry` | DEAD_LETTER 알림 수동 재시도 (attempt_count 리셋) |
+| POST | `/api/v1/notifications/{id}/retry` | DEAD_LETTER 알림 수동 재시도 (`X-User-Role: OPERATOR` 필요) |
 
 ### 발송 요청 예시
 

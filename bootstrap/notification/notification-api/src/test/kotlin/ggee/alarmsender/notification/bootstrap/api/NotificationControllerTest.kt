@@ -36,9 +36,10 @@ class NotificationControllerTest @Autowired constructor(
         jdbcTemplate.execute("TRUNCATE TABLE notification_history, notification_outbox, notification RESTART IDENTITY CASCADE")
     }
 
-    private fun headers(userId: String, idempotencyKey: String? = null): HttpHeaders = HttpHeaders().apply {
+    private fun headers(userId: String, idempotencyKey: String? = null, role: String? = null): HttpHeaders = HttpHeaders().apply {
         contentType = MediaType.APPLICATION_JSON
         set("X-User-Id", userId)
+        if (role != null) set("X-User-Role", role)
         if (idempotencyKey != null) set("Idempotency-Key", idempotencyKey)
     }
 
@@ -118,7 +119,26 @@ class NotificationControllerTest @Autowired constructor(
     }
 
     @Test
-    fun `DEAD_LETTER 가 아닌 알림에 retry — 409 Conflict (도메인 상태 위반)`() {
+    fun `OPERATOR 권한 없이 retry 시도 — 403 Forbidden (OPERATOR_ONLY)`() {
+        val created = rest.postForEntity(
+            "/api/v1/notifications",
+            HttpEntity(createBody, headers("u1", "retry-403")),
+            Map::class.java,
+        )
+        val id = created.body!!["id"]
+
+        // 본인이라도 USER 권한이면 거부 — X-User-Role 헤더 미지정 = USER
+        val resp = rest.postForEntity(
+            "/api/v1/notifications/$id/retry",
+            HttpEntity<Void>(headers("u1")),
+            Map::class.java,
+        )
+        assertEquals(HttpStatus.FORBIDDEN, resp.statusCode)
+        assertEquals("OPERATOR_ONLY", resp.body!!["code"])
+    }
+
+    @Test
+    fun `OPERATOR 가 DEAD_LETTER 가 아닌 알림에 retry — 409 Conflict (도메인 상태 위반)`() {
         // u1 알림 적재 (PENDING 상태)
         val created = rest.postForEntity(
             "/api/v1/notifications",
@@ -127,10 +147,10 @@ class NotificationControllerTest @Autowired constructor(
         )
         val id = created.body!!["id"]
 
-        // PENDING 인 알림에 retry → 409
+        // OPERATOR 권한으로 호출하지만 알림이 PENDING 상태 → 409
         val resp = rest.postForEntity(
             "/api/v1/notifications/$id/retry",
-            HttpEntity<Void>(headers("u1")),
+            HttpEntity<Void>(headers("ops-1", role = "OPERATOR")),
             Map::class.java,
         )
         assertEquals(HttpStatus.CONFLICT, resp.statusCode)

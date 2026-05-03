@@ -40,3 +40,14 @@ class NotificationDataInconsistencyException(
 ) : IllegalStateException(message) {
     val code: String = "NOTIFICATION_DATA_INCONSISTENCY"
 }
+
+/**
+ * OPERATOR 권한이 필요한 작업을 일반 USER 가 시도했을 때 발생.
+ * (예: DEAD_LETTER 수동 재시도)
+ */
+class OperatorOnlyException(
+    val operationName: String,
+    val requesterId: String,
+) : IllegalStateException("'${'$'}operationName' 은(는) 운영자만 수행할 수 있습니다 (요청자: ${'$'}requesterId)") {
+    val code: String = "OPERATOR_ONLY"
+}

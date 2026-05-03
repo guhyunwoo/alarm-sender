@@ -1,5 +1,6 @@
 package ggee.alarmsender.notification.bootstrap.api
 
+import ggee.alarmsender.notification.domain.RequesterRole
 import ggee.alarmsender.notification.usecase.getnotification.GetNotificationQuery
 import ggee.alarmsender.notification.usecase.getnotification.GetNotificationUseCase
 import ggee.alarmsender.notification.usecase.listnotifications.ListNotificationsQuery
@@ -100,13 +101,23 @@ class NotificationController(
 
     /**
      * POST /api/v1/notifications/{id}/retry
-     * DEAD_LETTER 격리된 알림을 본인 의지로 재시도. attempt_count 가 0 으로 리셋되어 다시 5회까지 자동 재시도된다.
-     * DEAD_LETTER 가 아닌 알림에 호출 시 409 Conflict (도메인 상태 전제 위반).
+     * DEAD_LETTER 격리된 알림을 운영자 의지로 재시도.
+     * attempt_count 가 0 으로 리셋되어 다시 5회까지 자동 재시도된다.
+     *
+     *  - 권한: **OPERATOR 만 가능** (`X-User-Role: OPERATOR` 헤더 필요).
+     *          일반 USER 는 본인 알림이라도 직접 재시도 불가 → 403 Forbidden (OPERATOR_ONLY).
+     *  - 상태: DEAD_LETTER 가 아닌 알림에 호출 시 409 Conflict (도메인 상태 전제 위반).
      */
     @PostMapping("/{id}/retry")
     fun retry(
         @RequestHeader("X-User-Id") requesterId: String,
+        @RequestHeader(value = "X-User-Role", defaultValue = "USER") requesterRole: String,
         @PathVariable id: Long,
-    ): NotificationResponse =
-        NotificationResponse.from(retryUseCase.execute(RetryNotificationCommand(id, requesterId)))
+    ): NotificationResponse {
+        val role = runCatching { RequesterRole.valueOf(requesterRole.uppercase()) }
+            .getOrDefault(RequesterRole.USER)
+        return NotificationResponse.from(
+            retryUseCase.execute(RetryNotificationCommand(id, requesterId, role)),
+        )
+    }
 }

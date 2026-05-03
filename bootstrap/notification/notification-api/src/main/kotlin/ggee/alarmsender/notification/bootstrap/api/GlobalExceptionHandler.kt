@@ -3,6 +3,7 @@ package ggee.alarmsender.notification.bootstrap.api
 import ggee.alarmsender.notification.domain.exception.NotificationAccessDeniedException
 import ggee.alarmsender.notification.domain.exception.NotificationDataInconsistencyException
 import ggee.alarmsender.notification.domain.exception.NotificationNotFoundException
+import ggee.alarmsender.notification.domain.exception.OperatorOnlyException
 import ggee.alarmsender.notification.domain.exception.RecipientForbiddenException
 import org.slf4j.LoggerFactory
 import org.springframework.dao.OptimisticLockingFailureException
@@ -27,6 +28,10 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(RecipientForbiddenException::class)
     fun recipientForbidden(e: RecipientForbiddenException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.FORBIDDEN).body(ErrorResponse(e.code, e.message ?: ""))
+
+    @ExceptionHandler(OperatorOnlyException::class)
+    fun operatorOnly(e: OperatorOnlyException): ResponseEntity<ErrorResponse> =
         ResponseEntity.status(HttpStatus.FORBIDDEN).body(ErrorResponse(e.code, e.message ?: ""))
 
     /**

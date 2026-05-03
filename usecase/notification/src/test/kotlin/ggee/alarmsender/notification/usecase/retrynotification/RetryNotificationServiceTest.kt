@@ -3,8 +3,9 @@ package ggee.alarmsender.notification.usecase.retrynotification
 import ggee.alarmsender.notification.domain.HistoryReason
 import ggee.alarmsender.notification.domain.NotificationStatus
 import ggee.alarmsender.notification.domain.OutboxStatus
-import ggee.alarmsender.notification.domain.exception.NotificationAccessDeniedException
+import ggee.alarmsender.notification.domain.RequesterRole
 import ggee.alarmsender.notification.domain.exception.NotificationNotFoundException
+import ggee.alarmsender.notification.domain.exception.OperatorOnlyException
 import ggee.alarmsender.notification.testfixture.NotificationFixtures
 import ggee.alarmsender.notification.teststub.InMemoryNotificationHistoryRepository
 import ggee.alarmsender.notification.teststub.InMemoryNotificationOutboxRepository
@@ -55,11 +56,14 @@ class RetryNotificationServiceTest {
         return n.id!!
     }
 
+    private fun command(notificationId: Long, requesterId: String = "ops-1", role: RequesterRole = RequesterRole.OPERATOR) =
+        RetryNotificationCommand(notificationId, requesterId, role)
+
     @Test
-    fun `DEAD_LETTER 알림 수동 재시도 시 PENDING 으로 복귀하고 attempt_count 가 0 으로 초기화된다`() {
+    fun `OPERATOR 가 DEAD_LETTER 알림 재시도 시 PENDING 으로 복귀하고 attempt_count 가 0 으로 초기화된다`() {
         val id = seedDeadLetter()
 
-        val result = sut.execute(RetryNotificationCommand(id, "u1"))
+        val result = sut.execute(command(id))
 
         assertEquals(NotificationStatus.PENDING, result.status)
 
@@ -73,7 +77,7 @@ class RetryNotificationServiceTest {
     @Test
     fun `MANUAL_RETRY history 가 적재되어 자동 재시도와 구분된다`() {
         val id = seedDeadLetter()
-        sut.execute(RetryNotificationCommand(id, "u1"))
+        sut.execute(command(id))
 
         val recent = history.all().last()
         assertEquals(HistoryReason.MANUAL_RETRY, recent.reason)
@@ -82,17 +86,17 @@ class RetryNotificationServiceTest {
     }
 
     @Test
-    fun `본인 외 사용자가 시도하면 접근 거부 예외 발생`() {
+    fun `일반 USER 는 본인 알림이라도 재시도 시 OperatorOnly 예외 발생`() {
         val id = seedDeadLetter(recipient = "u1")
-        assertThrows<NotificationAccessDeniedException> {
-            sut.execute(RetryNotificationCommand(id, "u2"))
+        assertThrows<OperatorOnlyException> {
+            sut.execute(command(id, requesterId = "u1", role = RequesterRole.USER))
         }
     }
 
     @Test
-    fun `존재하지 않는 알림 재시도 시 알림 미발견 예외 발생`() {
+    fun `존재하지 않는 알림 재시도 시 알림 미발견 예외 발생 (단 OPERATOR 권한 검사를 먼저 통과해야 함)`() {
         assertThrows<NotificationNotFoundException> {
-            sut.execute(RetryNotificationCommand(notificationId = 999, requesterId = "u1"))
+            sut.execute(command(notificationId = 999))
         }
     }
 
@@ -109,7 +113,7 @@ class RetryNotificationServiceTest {
 
         // domain.Notification.resetForManualRetry 의 check(...) 가 IllegalStateException 던짐 → handler 409
         assertThrows<IllegalStateException> {
-            sut.execute(RetryNotificationCommand(n.id!!, "u1"))
+            sut.execute(command(n.id!!))
         }
     }
 }
