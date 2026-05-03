@@ -34,9 +34,10 @@ class NotificationHistoryRepositoryImplTest @Autowired constructor(
         val n = notificationRepo.save(NotificationFixtures.notification(idempotencyKey = "h1"))
         val now = Instant.parse("2026-05-02T10:00:00Z")
 
+        // notification.status 는 PENDING / SENT / DEAD_LETTER 3개. 워커 처리 중간 상태(IN_PROGRESS) 는 outbox 에만 존재.
         val first = sut.append(NotificationHistory.of(n.id!!, null, NotificationStatus.PENDING, HistoryReason.CREATED, now))
-        val second = sut.append(NotificationHistory.of(n.id!!, NotificationStatus.PENDING, NotificationStatus.IN_PROGRESS, HistoryReason.CLAIMED, now.plusSeconds(1)))
-        val third = sut.append(NotificationHistory.of(n.id!!, NotificationStatus.IN_PROGRESS, NotificationStatus.SENT, HistoryReason.SENT, now.plusSeconds(2)))
+        val second = sut.append(NotificationHistory.of(n.id!!, NotificationStatus.PENDING, NotificationStatus.PENDING, HistoryReason.CLAIMED, now.plusSeconds(1)))
+        val third = sut.append(NotificationHistory.of(n.id!!, NotificationStatus.PENDING, NotificationStatus.SENT, HistoryReason.SENT, now.plusSeconds(2)))
 
         assertNotNull(first.id)
         assertNotNull(second.id)

@@ -20,6 +20,11 @@ data class NotificationOutbox(
     val lastError: String? = null,
     val createdAt: Instant,
     val updatedAt: Instant,
+    /**
+     * 낙관적 락 버전. 영속 계층이 관리하며 도메인 메서드는 그대로 전파한다.
+     * stale write (lease 만료 후 죽은 워커 부활) 차단 토큰.
+     */
+    val version: Long = 0L,
 ) {
     fun claim(workerId: String, now: Instant, leaseDuration: Duration): NotificationOutbox {
         require(status == OutboxStatus.PENDING) { "PENDING 이 아닌 row 를 claim 할 수 없다 (현재: ${'$'}status)" }

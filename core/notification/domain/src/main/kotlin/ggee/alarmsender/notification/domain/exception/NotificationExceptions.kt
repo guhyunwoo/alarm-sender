@@ -19,3 +19,24 @@ class NotificationAccessDeniedException(
 ) : IllegalStateException("사용자($requesterId)는 알림(id=$notificationId)에 접근 권한이 없습니다") {
     val code: String = "NOTIFICATION_ACCESS_DENIED"
 }
+
+/**
+ * 본인 외 사용자가 다른 수신자의 알림 목록을 조회하려 할 때 발생.
+ * 단일 알림이 아닌 자원(목록) 단위 권한 거부에 사용.
+ */
+class RecipientForbiddenException(
+    val targetRecipientId: String,
+    val requesterId: String,
+) : IllegalStateException("사용자($requesterId)는 ($targetRecipientId)의 알림 목록에 접근 권한이 없습니다") {
+    val code: String = "RECIPIENT_FORBIDDEN"
+}
+
+/**
+ * outbox row 와 notification row 의 일대일 관계가 깨졌을 때 발생.
+ * 정상 흐름에서는 발생하지 않으며 데이터 불일치(수동 DB 조작 등) 신호다.
+ */
+class NotificationDataInconsistencyException(
+    message: String,
+) : IllegalStateException(message) {
+    val code: String = "NOTIFICATION_DATA_INCONSISTENCY"
+}

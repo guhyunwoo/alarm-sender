@@ -13,6 +13,7 @@ internal fun NotificationOutboxEntity.toDomain(): NotificationOutbox = Notificat
     lastError = lastError,
     createdAt = createdAt,
     updatedAt = updatedAt,
+    version = version,
 )
 
 internal fun NotificationOutbox.toEntity(): NotificationOutboxEntity = NotificationOutboxEntity(
@@ -26,4 +27,5 @@ internal fun NotificationOutbox.toEntity(): NotificationOutboxEntity = Notificat
     lastError = lastError,
     createdAt = createdAt,
     updatedAt = updatedAt,
+    version = version,
 )

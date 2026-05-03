@@ -43,7 +43,8 @@ class NotificationOutboxRepositoryImpl(
             SET status = 'IN_PROGRESS',
                 lease_owner = :owner,
                 lease_expires_at = :leaseExpiresAt,
-                updated_at = :now
+                updated_at = :now,
+                version = version + 1
             WHERE id IN (
                 SELECT id FROM notification_outbox
                 WHERE status = 'PENDING' AND available_at <= :now
@@ -52,7 +53,7 @@ class NotificationOutboxRepositoryImpl(
                 FOR UPDATE SKIP LOCKED
             )
             RETURNING id, notification_id, status, available_at, attempt_count,
-                      lease_owner, lease_expires_at, last_error, created_at, updated_at
+                      lease_owner, lease_expires_at, last_error, created_at, updated_at, version
         """.trimIndent()
 
         val params = MapSqlParameterSource()
@@ -67,7 +68,7 @@ class NotificationOutboxRepositoryImpl(
     override fun findExpired(now: Instant, limit: Int): List<NotificationOutbox> {
         val sql = """
             SELECT id, notification_id, status, available_at, attempt_count,
-                   lease_owner, lease_expires_at, last_error, created_at, updated_at
+                   lease_owner, lease_expires_at, last_error, created_at, updated_at, version
             FROM notification_outbox
             WHERE status = 'IN_PROGRESS'
               AND lease_expires_at IS NOT NULL
@@ -101,6 +102,7 @@ class NotificationOutboxRepositoryImpl(
                 lastError = rs.getString("last_error"),
                 createdAt = rs.getTimestamp("created_at").toInstant(),
                 updatedAt = rs.getTimestamp("updated_at").toInstant(),
+                version = rs.getLong("version"),
             )
         }
     }

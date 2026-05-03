@@ -30,20 +30,11 @@ data class Notification(
         if (readAt != null) this else copy(readAt = now)
 
     fun markSent(now: Instant): Notification {
-        require(status == NotificationStatus.PENDING || status == NotificationStatus.IN_PROGRESS) {
+        require(status == NotificationStatus.PENDING) {
             "${'$'}status 상태에서 SENT 로 전이할 수 없다"
         }
         return copy(status = NotificationStatus.SENT, sentAt = now)
     }
-
-    fun markInProgress(): Notification {
-        require(status == NotificationStatus.PENDING) {
-            "${'$'}status 상태에서 IN_PROGRESS 로 전이할 수 없다"
-        }
-        return copy(status = NotificationStatus.IN_PROGRESS)
-    }
-
-    fun markFailed(): Notification = copy(status = NotificationStatus.FAILED)
 
     fun markDeadLetter(): Notification = copy(status = NotificationStatus.DEAD_LETTER)
 

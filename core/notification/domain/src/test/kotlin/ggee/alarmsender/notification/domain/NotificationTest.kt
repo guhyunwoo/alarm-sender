@@ -51,13 +51,16 @@ class NotificationTest {
     }
 
     @Test
-    fun `markSent 는 PENDING 또는 IN_PROGRESS 에서만 가능하다`() {
+    fun `markSent 는 PENDING 에서만 가능하다`() {
         val sent = newNotification().markSent(now.plusSeconds(5))
         assertEquals(NotificationStatus.SENT, sent.status)
         assertNotNull(sent.sentAt)
 
         assertThrows<IllegalArgumentException> {
             newNotification().copy(status = NotificationStatus.SENT).markSent(now)
+        }
+        assertThrows<IllegalArgumentException> {
+            newNotification().copy(status = NotificationStatus.DEAD_LETTER).markSent(now)
         }
     }
 

@@ -7,6 +7,7 @@ import ggee.alarmsender.notification.domain.NotificationHistoryRepository
 import ggee.alarmsender.notification.domain.NotificationRepository
 import ggee.alarmsender.notification.domain.NotificationStatus
 import ggee.alarmsender.notification.domain.exception.NotificationAccessDeniedException
+import ggee.alarmsender.notification.domain.exception.NotificationDataInconsistencyException
 import ggee.alarmsender.notification.domain.exception.NotificationNotFoundException
 import ggee.alarmsender.notification.usecase.dispatchnotification.OutboxPublisher
 import org.springframework.stereotype.Service
@@ -38,7 +39,9 @@ class RetryNotificationService(
         }
 
         val outbox = outboxPublisher.findByNotificationId(notification.requireId())
-            ?: error("notification(id=${notification.requireId()}) 의 outbox row 가 존재하지 않음 — 데이터 불일치")
+            ?: throw NotificationDataInconsistencyException(
+                "notification(id=${notification.requireId()}) 의 outbox row 가 존재하지 않음",
+            )
 
         val now = Instant.now(clock)
 

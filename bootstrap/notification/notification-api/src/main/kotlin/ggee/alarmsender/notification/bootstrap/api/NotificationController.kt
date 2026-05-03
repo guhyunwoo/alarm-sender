@@ -1,6 +1,6 @@
 package ggee.alarmsender.notification.bootstrap.api
 
-import ggee.alarmsender.notification.domain.exception.NotificationAccessDeniedException
+import ggee.alarmsender.notification.domain.exception.RecipientForbiddenException
 import ggee.alarmsender.notification.usecase.getnotification.GetNotificationQuery
 import ggee.alarmsender.notification.usecase.getnotification.GetNotificationUseCase
 import ggee.alarmsender.notification.usecase.listnotifications.ListNotificationsQuery
@@ -12,7 +12,6 @@ import ggee.alarmsender.notification.usecase.retrynotification.RetryNotification
 import ggee.alarmsender.notification.usecase.sendnotification.SendNotificationCommand
 import ggee.alarmsender.notification.usecase.sendnotification.SendNotificationUseCase
 import jakarta.validation.Valid
-import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
@@ -38,7 +37,7 @@ class NotificationController(
      * POST /api/v1/notifications
      * Idempotency-Key 헤더로 클라이언트 재시도 안전.
      * 자연 키(recipient + type + ref) 가 중복인 경우에도 기존 알림을 그대로 반환.
-     * 동시성으로 race 발생 시 DB UNIQUE 제약이 마지막 보호선 — 충돌 시 재조회 정책으로 응답.
+     * 동시성 race 처리는 SendNotificationUseCase 내부에서 책임짐 (DB UNIQUE → 재조회).
      */
     @PostMapping
     fun create(
@@ -55,15 +54,9 @@ class NotificationController(
             refType = request.refType,
             refId = request.refId,
         )
-        return try {
-            val result = sendUseCase.execute(command)
-            val status = if (result.deduplicated) HttpStatus.OK else HttpStatus.CREATED
-            ResponseEntity.status(status).body(NotificationResponse.from(result.notification))
-        } catch (_: DataIntegrityViolationException) {
-            // 동시성 충돌: 다른 요청이 같은 키로 먼저 적재됨. 한 번 더 호출하면 멱등성 검사를 통과해 기존 알림 반환.
-            val retried = sendUseCase.execute(command)
-            ResponseEntity.status(HttpStatus.OK).body(NotificationResponse.from(retried.notification))
-        }
+        val result = sendUseCase.execute(command)
+        val status = if (result.deduplicated) HttpStatus.OK else HttpStatus.CREATED
+        return ResponseEntity.status(status).body(NotificationResponse.from(result.notification))
     }
 
     @GetMapping("/{id}")
@@ -83,8 +76,7 @@ class NotificationController(
         // recipientId 미지정 시 본인 알림 조회
         val targetRecipient = recipientId ?: requesterId
         if (targetRecipient != requesterId) {
-            // 본인 외 사용자의 알림 목록 시도 — 알림 자체가 특정되지 않으므로 id=0 으로 표기
-            throw NotificationAccessDeniedException(notificationId = 0, requesterId = requesterId)
+            throw RecipientForbiddenException(targetRecipientId = targetRecipient, requesterId = requesterId)
         }
 
         return listUseCase.execute(ListNotificationsQuery(targetRecipient, unreadOnly, limit, offset))
