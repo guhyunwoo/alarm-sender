@@ -8,6 +8,7 @@ import ggee.alarmsender.notification.domain.NotificationOutbox
 import ggee.alarmsender.notification.domain.NotificationOutboxRepository
 import ggee.alarmsender.notification.domain.NotificationRepository
 import ggee.alarmsender.notification.domain.NotificationStatus
+import org.slf4j.LoggerFactory
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionTemplate
@@ -46,6 +47,8 @@ class SendNotificationService(
     private val transactionTemplate: TransactionTemplate,
 ) : SendNotificationUseCase {
 
+    private val log = LoggerFactory.getLogger(SendNotificationService::class.java)
+
     override fun execute(command: SendNotificationCommand): SendNotificationResult {
         // 1차 멱등 검사 — 트랜잭션 밖 read
         findExisting(command)?.let { return SendNotificationResult(it, deduplicated = true) }
@@ -55,9 +58,17 @@ class SendNotificationService(
             transactionTemplate.execute { _ -> persistNew(command) }!!
         } catch (ex: DataIntegrityViolationException) {
             // race: 다른 트랜잭션이 같은 키로 먼저 commit. 트랜잭션 밖에서 다시 조회.
-            return findExisting(command)
-                ?.let { SendNotificationResult(it, deduplicated = true) }
-                ?: throw ex
+            findExisting(command)?.let {
+                return SendNotificationResult(it, deduplicated = true)
+            }
+            // 멱등 키도 자연 키도 매칭 안 되는데 UNIQUE 제약이 깨진 케이스 — 운영자가 어느 제약이
+            // 깨졌는지 알아야 분류·복구가 가능하다. cause 의 PSQLException constraint name 까지 남긴다.
+            log.error(
+                "DataIntegrityViolation race-fallback miss: idempotencyKey={}, recipient={}, type={}, refType={}, refId={}",
+                command.idempotencyKey, command.recipientId, command.type,
+                command.refType, command.refId, ex,
+            )
+            throw ex
         }
         return SendNotificationResult(saved, deduplicated = false)
     }
