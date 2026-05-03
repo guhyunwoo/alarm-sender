@@ -23,6 +23,13 @@ class ReclaimNotificationServiceTest {
 
     private val sut = ReclaimNotificationService(outboxPublisher, history, clock)
 
+    @org.junit.jupiter.api.BeforeEach
+    fun setUp() {
+        notifications.clear()
+        outbox.clear()
+        history.clear()
+    }
+
     @Test
     fun `lease 만료 IN_PROGRESS row 만 PENDING 으로 복귀시킨다`() {
         val n1 = notifications.save(NotificationFixtures.notification(idempotencyKey = "k1", refId = "1")).id!!

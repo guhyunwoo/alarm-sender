@@ -50,7 +50,7 @@ paths:
           name: recipientId
           required: false
           schema: { type: string }
-          description: 미지정 시 본인. 본인 외 지정 시 400.
+          description: 미지정 시 본인. 본인 외 지정 시 403 Forbidden.
         - in: query
           name: unreadOnly
           schema: { type: boolean, default: false }
@@ -68,6 +68,7 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/NotificationResponse' }
+        '403': { description: 본인 외 사용자의 목록 조회 시도 (RECIPIENT_FORBIDDEN), content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
 
   /api/v1/notifications/{id}:
     get:
@@ -103,9 +104,9 @@ paths:
           schema: { type: integer, format: int64 }
       responses:
         '200': { description: PENDING 으로 복귀, content: { application/json: { schema: { $ref: '#/components/schemas/NotificationResponse' } } } }
-        '400': { description: DEAD_LETTER 가 아닌 상태에서 호출, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
-        '403': { description: 본인 외 사용자 시도, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
-        '404': { description: 존재하지 않는 알림, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '403': { description: 본인 외 사용자 시도 (NOTIFICATION_ACCESS_DENIED), content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '404': { description: 존재하지 않는 알림 (NOTIFICATION_NOT_FOUND), content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: DEAD_LETTER 가 아닌 상태에서 호출 (INVALID_STATE) — 도메인 상태 위반, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
 
   /api/v1/notifications/{id}/read:
     post:
@@ -180,6 +181,21 @@ components:
 
     ErrorResponse:
       type: object
+      description: |
+        표준 오류 응답.
+        code 는 안정적 식별자로 클라이언트의 분기 / retry 정책 결정에 사용 가능.
       properties:
-        code: { type: string }
-        message: { type: string }
+        code:
+          type: string
+          enum:
+            - NOTIFICATION_NOT_FOUND        # 404 — 존재하지 않는 알림
+            - NOTIFICATION_ACCESS_DENIED    # 403 — 단일 알림 권한 거부
+            - RECIPIENT_FORBIDDEN           # 403 — 다른 수신자 목록 조회 시도
+            - INVALID_STATE                 # 409 — 도메인 상태 전제 위반 (예: PENDING 알림에 retry)
+            - OPTIMISTIC_LOCK_CONFLICT      # 409 — 동시 갱신 충돌 (재시도 가능)
+            - VALIDATION_FAILED             # 400 — 요청 본문 / 파라미터 검증 실패
+            - BAD_REQUEST                   # 400 — IllegalArgumentException 일반
+            - NOTIFICATION_DATA_INCONSISTENCY  # 500 — outbox/notification 매핑 깨짐 (운영 alert)
+            - INTERNAL_ERROR                # 500 — 분류되지 않은 내부 오류
+        message:
+          type: string

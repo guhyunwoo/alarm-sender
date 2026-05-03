@@ -97,17 +97,19 @@ class RetryNotificationServiceTest {
     }
 
     @Test
-    fun `DEAD_LETTER 가 아닌 알림에 시도하면 IllegalStateException 발생 (도메인 불변식)`() {
+    fun `DEAD_LETTER 가 아닌 알림에 재시도 시도 시 도메인 상태 위반 예외 발생`() {
         val n = notifications.save(
             NotificationFixtures.notification(
                 idempotencyKey = "pending-1",
+                recipientId = "u1",
                 status = NotificationStatus.PENDING,
             ),
         )
         outbox.save(NotificationFixtures.outbox(notificationId = n.id!!, status = OutboxStatus.PENDING))
 
-        assertThrows<IllegalArgumentException> { // domain.Notification.resetForManualRetry require
-            sut.execute(RetryNotificationCommand(n.id!!, "user-1"))
+        // domain.Notification.resetForManualRetry 의 check(...) 가 IllegalStateException 던짐 → handler 409
+        assertThrows<IllegalStateException> {
+            sut.execute(RetryNotificationCommand(n.id!!, "u1"))
         }
     }
 }

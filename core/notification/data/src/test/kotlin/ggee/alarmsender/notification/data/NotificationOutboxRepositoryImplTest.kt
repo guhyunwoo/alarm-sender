@@ -131,29 +131,30 @@ class NotificationOutboxRepositoryImplTest @Autowired constructor(
     }
 
     @Test
-    fun `낙관적 락 — claim 후 stale 도메인 객체로 update 시도 시 OptimisticLock 차단`() {
-        // 시나리오: 워커 A 가 claim → 들고 있던 도메인 객체(version=1)를 보관.
-        // 그 사이 batch 가 reclaim → version=2 로 증가.
-        // 부활한 워커 A 가 stale 객체로 markSucceeded → DB UPDATE 실패해야 함.
+    fun `낙관적 락 — lease 만료 후 부활한 워커의 stale write 차단`() {
+        // production race 시나리오:
+        //  1. 워커 A 가 claim (version+1)
+        //  2. 워커 A 무응답 (GC pause, 네트워크 단절 등) — DB 변경 없음, lease 시간만 흐름
+        //  3. batch 가 lease 만료 row 를 reclaim (version+1)
+        //  4. 워커 A 가 부활해 stale 도메인 객체로 markSucceeded → DB version 불일치 → 차단
         val nid = givenNotification("opt-lock")
         sut.save(NotificationFixtures.outbox(notificationId = nid, availableAt = now, createdAt = now, updatedAt = now))
 
-        // 1. 워커 A 가 claim — version 이 +1 됨
+        // 1. 워커 A 가 claim — DB version 0 → 1
         val claimedByA = sut.claimBatch(workerA, now, leaseDuration, 1).single()
-        val versionAtClaim = claimedByA.version
 
-        // 2. lease 만료 후 batch 가 reclaim → DB version 증가
-        val expired = claimedByA.copy(leaseExpiresAt = now.minusSeconds(1))
-        sut.update(expired) // lease 만료된 상태로 갱신
-        val reclaimed = sut.findExpired(now, 10).single().reclaim(now)
-        sut.update(reclaimed) // version 증가
+        // 2. lease 가 만료될 만큼 시간 흐름 (Clock 진행, DB 변경 없음)
+        val laterAfterLease = now.plus(leaseDuration).plusSeconds(1)
 
-        val versionAfterReclaim = sut.findById(claimedByA.requireId())!!.version
-        assertTrue(versionAfterReclaim > versionAtClaim, "reclaim 으로 version 이 증가해야 함")
+        // 3. batch reclaim — DB version 1 → 2
+        val expired = sut.findExpired(laterAfterLease, 10).single()
+        sut.update(expired.reclaim(laterAfterLease))
+        assertTrue(sut.findById(claimedByA.requireId())!!.version > claimedByA.version)
 
-        // 3. 워커 A 가 stale 객체로 markSucceeded 시도 → OptimisticLockException 차단
+        // 4. 워커 A 가 부활 — 도메인 객체는 여전히 version=1 (stale).
+        //    markSucceeded 후 update 시도 → OptimisticLockingFailureException 으로 차단.
         org.junit.jupiter.api.assertThrows<org.springframework.dao.OptimisticLockingFailureException> {
-            sut.update(claimedByA.markSucceeded(now.plusSeconds(1)))
+            sut.update(claimedByA.markSucceeded(laterAfterLease.plusSeconds(1)))
         }
     }
 

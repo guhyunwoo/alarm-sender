@@ -1,6 +1,7 @@
 package ggee.alarmsender.notification.usecase.dispatchnotification
 
 import ggee.alarmsender.notification.domain.ExponentialBackoffRetryPolicy
+import ggee.alarmsender.notification.domain.HistoryReason
 import ggee.alarmsender.notification.domain.NotificationOutbox
 import ggee.alarmsender.notification.domain.NotificationStatus
 import ggee.alarmsender.notification.domain.OutboxStatus
@@ -142,7 +143,7 @@ class DispatchNotificationServiceTest {
         // history.reason 으로 영구 실패 vs 한도 소진 구분
         val histories = history.findByNotificationId(o.notificationId)
         val deadEntry = histories.last()
-        assertEquals(ggee.alarmsender.notification.domain.HistoryReason.PERMANENT_FAILURE, deadEntry.reason)
+        assertEquals(HistoryReason.PERMANENT_FAILURE, deadEntry.reason)
     }
 
     @Test

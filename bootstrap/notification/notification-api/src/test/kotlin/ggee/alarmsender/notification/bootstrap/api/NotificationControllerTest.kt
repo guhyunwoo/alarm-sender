@@ -101,6 +101,43 @@ class NotificationControllerTest @Autowired constructor(
     }
 
     @Test
+    fun `다른 사용자의 목록 조회 시도 — 403 Forbidden`() {
+        rest.postForEntity(
+            "/api/v1/notifications",
+            HttpEntity(createBody, headers("u1", "list-403")),
+            Map::class.java,
+        )
+        val resp = rest.exchange(
+            "/api/v1/notifications?recipientId=u1",
+            HttpMethod.GET,
+            HttpEntity<Void>(headers("u2")),
+            Map::class.java,
+        )
+        assertEquals(HttpStatus.FORBIDDEN, resp.statusCode)
+        assertEquals("RECIPIENT_FORBIDDEN", resp.body!!["code"])
+    }
+
+    @Test
+    fun `DEAD_LETTER 가 아닌 알림에 retry — 409 Conflict (도메인 상태 위반)`() {
+        // u1 알림 적재 (PENDING 상태)
+        val created = rest.postForEntity(
+            "/api/v1/notifications",
+            HttpEntity(createBody, headers("u1", "retry-409")),
+            Map::class.java,
+        )
+        val id = created.body!!["id"]
+
+        // PENDING 인 알림에 retry → 409
+        val resp = rest.postForEntity(
+            "/api/v1/notifications/$id/retry",
+            HttpEntity<Void>(headers("u1")),
+            Map::class.java,
+        )
+        assertEquals(HttpStatus.CONFLICT, resp.statusCode)
+        assertEquals("INVALID_STATE", resp.body!!["code"])
+    }
+
+    @Test
     fun `목록 조회 — 본인 알림 + 최신순 + unreadOnly 필터`() {
         rest.postForEntity("/api/v1/notifications",
             HttpEntity("""{"recipientId":"u1","type":"ENROLL_COMPLETED","channel":"EMAIL","payload":{},"refType":"E","refId":"1"}""", headers("u1", "l1")), Map::class.java)

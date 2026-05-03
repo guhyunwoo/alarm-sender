@@ -101,7 +101,7 @@ class NotificationController(
     /**
      * POST /api/v1/notifications/{id}/retry
      * DEAD_LETTER 격리된 알림을 본인 의지로 재시도. attempt_count 가 0 으로 리셋되어 다시 5회까지 자동 재시도된다.
-     * DEAD_LETTER 가 아닌 알림에 호출 시 400 (도메인 불변식 위반).
+     * DEAD_LETTER 가 아닌 알림에 호출 시 409 Conflict (도메인 상태 전제 위반).
      */
     @PostMapping("/{id}/retry")
     fun retry(

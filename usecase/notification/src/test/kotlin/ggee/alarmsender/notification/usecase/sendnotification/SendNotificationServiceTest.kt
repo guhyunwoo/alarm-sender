@@ -7,6 +7,7 @@ import ggee.alarmsender.notification.domain.OutboxStatus
 import ggee.alarmsender.notification.teststub.InMemoryNotificationHistoryRepository
 import ggee.alarmsender.notification.teststub.InMemoryNotificationOutboxRepository
 import ggee.alarmsender.notification.teststub.InMemoryNotificationRepository
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.TransactionStatus
@@ -29,6 +30,13 @@ class SendNotificationServiceTest {
     private val transactionTemplate = TransactionTemplate(NoOpTransactionManager())
 
     private val sut = SendNotificationService(notifications, outbox, history, clock, transactionTemplate)
+
+    @BeforeEach
+    fun setUp() {
+        notifications.clear()
+        outbox.clear()
+        history.clear()
+    }
 
     private fun newCommand(
         recipientId: String = "user-1",

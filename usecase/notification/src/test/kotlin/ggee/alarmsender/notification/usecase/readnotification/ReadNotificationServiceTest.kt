@@ -24,6 +24,12 @@ class ReadNotificationServiceTest {
 
     private val sut = ReadNotificationService(notifications, history, clock)
 
+    @org.junit.jupiter.api.BeforeEach
+    fun setUp() {
+        notifications.clear()
+        history.clear()
+    }
+
     @Test
     fun `첫 read — newlyRead=true, readAt set, history READ 1건`() {
         val saved = notifications.save(NotificationFixtures.notification(idempotencyKey = "k1", recipientId = "u1"))

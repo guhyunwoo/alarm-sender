@@ -4,6 +4,7 @@ import ggee.alarmsender.notification.domain.exception.NotificationAccessDeniedEx
 import ggee.alarmsender.notification.domain.exception.NotificationNotFoundException
 import ggee.alarmsender.notification.testfixture.NotificationFixtures
 import ggee.alarmsender.notification.teststub.InMemoryNotificationRepository
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import kotlin.test.assertEquals
@@ -12,6 +13,11 @@ class GetNotificationServiceTest {
 
     private val repo = InMemoryNotificationRepository()
     private val sut = GetNotificationService(repo)
+
+    @BeforeEach
+    fun setUp() {
+        repo.clear()
+    }
 
     @Test
     fun `본인 알림 조회 성공`() {

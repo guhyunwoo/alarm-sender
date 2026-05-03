@@ -65,12 +65,13 @@ class NotificationTest {
     }
 
     @Test
-    fun `DEAD_LETTER 만 수동 재시도로 PENDING 복귀 가능`() {
+    fun `DEAD_LETTER 만 수동 재시도로 PENDING 복귀 가능 - 그 외 상태에서는 IllegalStateException`() {
         val dead = newNotification().copy(status = NotificationStatus.DEAD_LETTER)
         val retried = dead.resetForManualRetry()
         assertEquals(NotificationStatus.PENDING, retried.status)
 
-        assertThrows<IllegalArgumentException> {
+        // 상태 전제 위반은 IllegalStateException (handler 에서 409 Conflict)
+        assertThrows<IllegalStateException> {
             newNotification().resetForManualRetry()
         }
     }
