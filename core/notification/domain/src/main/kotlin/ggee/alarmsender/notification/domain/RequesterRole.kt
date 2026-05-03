@@ -10,4 +10,19 @@ package ggee.alarmsender.notification.domain
 enum class RequesterRole {
     USER,
     OPERATOR,
+    ;
+
+    companion object {
+        /**
+         * 헤더 문자열을 strict 하게 파싱한다. 인식 못 한 값은 silently USER 로 강등하지 않고
+         * [IllegalArgumentException] 으로 던진다 (handler 에서 400 BAD_REQUEST 매핑).
+         * 무지성 fallback 은 운영자가 오타를 냈을 때 OPERATOR 권한이 USER 로 떨어져
+         * 디버깅이 어렵게 만드는 원인이라 명시 실패가 낫다.
+         */
+        fun parse(raw: String): RequesterRole {
+            val normalized = raw.uppercase()
+            return entries.firstOrNull { it.name == normalized }
+                ?: throw IllegalArgumentException("알 수 없는 X-User-Role 값: '$raw' (가능한 값: ${entries.joinToString { it.name }})")
+        }
+    }
 }

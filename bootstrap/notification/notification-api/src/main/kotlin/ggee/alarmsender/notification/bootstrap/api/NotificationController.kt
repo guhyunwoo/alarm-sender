@@ -74,6 +74,12 @@ class NotificationController(
         @RequestParam(defaultValue = "20") limit: Int,
         @RequestParam(defaultValue = "0") offset: Int,
     ): List<NotificationResponse> {
+        // limit 상한 검증 — DoS 벡터 차단. UseCase 의 init require 도 1..200 으로 막지만,
+        // 컨트롤러에서 먼저 400 으로 친절히 돌려준다.
+        require(limit in 1..MAX_LIST_LIMIT) {
+            "limit 은 1 이상 $MAX_LIST_LIMIT 이하여야 한다 (요청: $limit)"
+        }
+        require(offset >= 0) { "offset 은 0 이상이어야 한다 (요청: $offset)" }
         // recipientId 미지정 시 본인 알림 조회. 권한 검사는 use case 책임.
         val targetRecipient = recipientId ?: requesterId
         return listUseCase.execute(
@@ -115,10 +121,13 @@ class NotificationController(
         @RequestHeader(value = "X-User-Role", defaultValue = "USER") requesterRole: String,
         @PathVariable id: Long,
     ): NotificationResponse {
-        val role = runCatching { RequesterRole.valueOf(requesterRole.uppercase()) }
-            .getOrDefault(RequesterRole.USER)
+        val role = RequesterRole.parse(requesterRole)
         return NotificationResponse.from(
             retryUseCase.execute(RetryNotificationCommand(id, requesterId, role)),
         )
+    }
+
+    companion object {
+        private const val MAX_LIST_LIMIT = 100
     }
 }

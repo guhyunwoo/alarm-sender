@@ -7,17 +7,21 @@ import ggee.alarmsender.notification.domain.NotificationTemplate
 import ggee.alarmsender.notification.domain.NotificationType
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
+import jakarta.validation.constraints.Size
 import java.time.Instant
 
 data class CreateNotificationRequest(
     @field:NotBlank
+    @field:Size(max = 128)
     val recipientId: String,
     @field:NotNull
     val type: NotificationType,
     @field:NotNull
     val channel: NotificationChannel,
     val payload: Map<String, Any?> = emptyMap(),
+    @field:Size(max = 64)
     val refType: String? = null,
+    @field:Size(max = 128)
     val refId: String? = null,
     val scheduledAt: Instant? = null,
 )

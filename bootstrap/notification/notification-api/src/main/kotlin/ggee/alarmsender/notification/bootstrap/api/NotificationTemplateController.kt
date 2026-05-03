@@ -44,8 +44,7 @@ class NotificationTemplateController(
         @PathVariable channel: NotificationChannel,
         @Valid @RequestBody request: UpdateNotificationTemplateRequest,
     ): NotificationTemplateResponse {
-        val role = runCatching { RequesterRole.valueOf(requesterRole.uppercase()) }
-            .getOrDefault(RequesterRole.USER)
+        val role = RequesterRole.parse(requesterRole)
         return NotificationTemplateResponse.from(
             updateUseCase.execute(
                 UpdateNotificationTemplateCommand(
