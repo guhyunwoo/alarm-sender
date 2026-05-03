@@ -2,7 +2,6 @@ package ggee.alarmsender.notification.testfixture
 
 import ggee.alarmsender.notification.domain.Notification
 import ggee.alarmsender.notification.domain.NotificationChannel
-import ggee.alarmsender.notification.domain.NotificationHistory
 import ggee.alarmsender.notification.domain.NotificationOutbox
 import ggee.alarmsender.notification.domain.NotificationStatus
 import ggee.alarmsender.notification.domain.NotificationTemplate
@@ -80,24 +79,5 @@ object NotificationFixtures {
         lastError = lastError,
         createdAt = createdAt,
         updatedAt = updatedAt,
-    )
-
-    @Suppress("unused")
-    fun history(
-        id: Long? = null,
-        notificationId: Long = 100L,
-        from: NotificationStatus? = null,
-        to: NotificationStatus = NotificationStatus.PENDING,
-        reason: ggee.alarmsender.notification.domain.HistoryReason = ggee.alarmsender.notification.domain.HistoryReason.CREATED,
-        detail: String? = null,
-        occurredAt: Instant = Instant.parse("2026-05-02T10:00:00Z"),
-    ): NotificationHistory = NotificationHistory(
-        id = id,
-        notificationId = notificationId,
-        fromStatus = from,
-        toStatus = to,
-        reason = reason,
-        detail = detail,
-        occurredAt = occurredAt,
     )
 }
