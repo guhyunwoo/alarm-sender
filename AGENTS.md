@@ -120,6 +120,7 @@ library:impl ──► library:interface
     - `com.example.notification.usecase.sendnotification`
     - `com.example.notification.bootstrap.api`
 - 클래스는 PascalCase를 사용한다.
+- **FQN(fully-qualified name) 인라인 사용 금지**. 타입 시그니처·어노테이션·예외 javadoc 등 어디서든 `java.time.Instant`, `org.springframework.dao.OptimisticLockingFailureException` 같은 풀 패키지 경로를 코드 본문에 그대로 쓰지 않는다. 무조건 파일 상단에 `import` 를 추가하고 short name (`Instant`, `OptimisticLockingFailureException`) 으로 사용한다. 같은 파일 안 동명 클래스 충돌처럼 import alias 가 필요한 극히 드문 경우에만 예외.
 - 모듈 경계를 명확히 유지한다:
     - 도메인 모델/비즈니스 규칙 → `core/<domain>/domain/`
     - 유즈케이스/비즈니스 로직 → `usecase/<use-case>/port-in-impl/`
