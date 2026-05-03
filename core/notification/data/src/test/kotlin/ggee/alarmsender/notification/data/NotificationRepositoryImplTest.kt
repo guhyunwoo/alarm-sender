@@ -149,4 +149,16 @@ class NotificationRepositoryImplTest @Autowired constructor(
         val refetched = sut.findById(saved.id!!)
         assertEquals(readAt, refetched?.readAt)
     }
+
+    @Test
+    fun `markAsReadIfUnread 는 최초 1회만 true 를 반환하고 readAt 을 갱신한다`() {
+        val saved = sut.save(NotificationFixtures.notification(idempotencyKey = "k1"))
+        val readAt = Instant.parse("2026-05-02T10:30:00Z")
+
+        assertEquals(true, sut.markAsReadIfUnread(saved.id!!, readAt))
+        assertEquals(false, sut.markAsReadIfUnread(saved.id!!, readAt.plusSeconds(1)))
+
+        val refetched = sut.findById(saved.id!!)
+        assertEquals(readAt, refetched?.readAt)
+    }
 }

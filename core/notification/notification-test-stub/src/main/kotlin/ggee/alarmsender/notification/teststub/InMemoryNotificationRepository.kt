@@ -3,6 +3,7 @@ package ggee.alarmsender.notification.teststub
 import ggee.alarmsender.notification.domain.Notification
 import ggee.alarmsender.notification.domain.NotificationRepository
 import ggee.alarmsender.notification.domain.NotificationType
+import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
@@ -52,6 +53,19 @@ class InMemoryNotificationRepository : NotificationRepository {
         val id = notification.requireId()
         store[id] = notification
         return notification
+    }
+
+    override fun markAsReadIfUnread(id: Long, readAt: Instant): Boolean {
+        var updated = false
+        store.compute(id) { _, current ->
+            if (current == null || current.readAt != null) {
+                current
+            } else {
+                updated = true
+                current.markAsRead(readAt)
+            }
+        }
+        return updated
     }
 
     fun clear() {

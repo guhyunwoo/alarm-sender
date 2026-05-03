@@ -10,6 +10,8 @@ import org.junit.jupiter.api.assertThrows
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
@@ -50,6 +52,32 @@ class ReadNotificationServiceTest {
 
         assertFalse(r2.newlyRead)
         // history 는 첫 read 때 1건만 적재
+        assertEquals(1, history.all().size)
+    }
+
+    @Test
+    fun `동시에 read 해도 하나의 호출만 newlyRead=true 이고 history 는 1건만 적재된다`() {
+        val saved = notifications.save(NotificationFixtures.notification(idempotencyKey = "k1", recipientId = "u1"))
+        val workers = 8
+        val executor = Executors.newFixedThreadPool(workers)
+        val ready = CountDownLatch(workers)
+        val start = CountDownLatch(1)
+
+        val results = (1..workers).map {
+            executor.submit<Boolean> {
+                ready.countDown()
+                start.await()
+                sut.execute(ReadNotificationCommand(saved.id!!, "u1")).newlyRead
+            }
+        }
+
+        ready.await()
+        start.countDown()
+
+        val newlyReadCount = results.count { it.get() }
+        executor.shutdown()
+
+        assertEquals(1, newlyReadCount)
         assertEquals(1, history.all().size)
     }
 
