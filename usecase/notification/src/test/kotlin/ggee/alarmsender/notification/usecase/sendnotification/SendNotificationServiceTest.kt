@@ -7,8 +7,10 @@ import ggee.alarmsender.notification.domain.OutboxStatus
 import ggee.alarmsender.notification.teststub.InMemoryNotificationHistoryRepository
 import ggee.alarmsender.notification.teststub.InMemoryNotificationOutboxRepository
 import ggee.alarmsender.notification.teststub.InMemoryNotificationRepository
-import ggee.alarmsender.notification.usecase.sendnotification.SendNotificationCommand
 import org.junit.jupiter.api.Test
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.TransactionStatus
+import org.springframework.transaction.support.TransactionTemplate
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -24,8 +26,9 @@ class SendNotificationServiceTest {
     private val notifications = InMemoryNotificationRepository()
     private val outbox = InMemoryNotificationOutboxRepository()
     private val history = InMemoryNotificationHistoryRepository()
+    private val transactionTemplate = TransactionTemplate(NoOpTransactionManager())
 
-    private val sut = SendNotificationService(notifications, outbox, history, clock)
+    private val sut = SendNotificationService(notifications, outbox, history, clock, transactionTemplate)
 
     private fun newCommand(
         recipientId: String = "user-1",
@@ -85,5 +88,26 @@ class SendNotificationServiceTest {
         assertFalse(first.deduplicated)
         assertFalse(second.deduplicated)
         assertEquals(2, notifications.all().size)
+    }
+
+    /** TransactionTemplate 가 콜백을 그대로 실행하도록 만드는 테스트용 fake. */
+    private class NoOpTransactionManager : PlatformTransactionManager {
+        override fun getTransaction(definition: org.springframework.transaction.TransactionDefinition?): TransactionStatus =
+            FakeStatus()
+
+        override fun commit(status: TransactionStatus) = Unit
+        override fun rollback(status: TransactionStatus) = Unit
+
+        private class FakeStatus : TransactionStatus {
+            override fun hasSavepoint(): Boolean = false
+            override fun setRollbackOnly() = Unit
+            override fun isRollbackOnly(): Boolean = false
+            override fun flush() = Unit
+            override fun isCompleted(): Boolean = false
+            override fun isNewTransaction(): Boolean = true
+            override fun createSavepoint(): Any = Any()
+            override fun rollbackToSavepoint(savepoint: Any) = Unit
+            override fun releaseSavepoint(savepoint: Any) = Unit
+        }
     }
 }

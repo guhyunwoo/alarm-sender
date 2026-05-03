@@ -9,6 +9,7 @@ import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
+import jakarta.persistence.Version
 import java.time.Instant
 
 @Entity
@@ -45,4 +46,13 @@ class NotificationOutboxEntity(
 
     @Column(name = "updated_at", nullable = false)
     var updatedAt: Instant,
+
+    /**
+     * 낙관적 락 버전. lease 만료 reclaim 후 죽은 줄 알았던 워커가 살아나 stale write 를 시도하면
+     * Hibernate 가 ObjectOptimisticLockingFailureException 을 던져 덮어쓰기를 막는다.
+     * (워커 측의 try/catch 가 이를 받아 row 격리 처리)
+     */
+    @Version
+    @Column(nullable = false)
+    var version: Long = 0L,
 )

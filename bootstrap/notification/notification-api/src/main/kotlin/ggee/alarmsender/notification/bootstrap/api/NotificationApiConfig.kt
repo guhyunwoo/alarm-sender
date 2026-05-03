@@ -5,6 +5,7 @@ import ggee.alarmsender.notification.domain.RetryPolicy
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.TransactionDefinition
 import org.springframework.transaction.support.TransactionTemplate
 import java.time.Clock
 
@@ -23,7 +24,13 @@ class NotificationApiConfig {
     @Bean
     fun retryPolicy(): RetryPolicy = ExponentialBackoffRetryPolicy()
 
+    /**
+     * 항상 새 트랜잭션을 시작 (REQUIRES_NEW). API 가 직접 호출하지는 않지만,
+     * use case 의 row-격리 의미를 보존하기 위해 worker 와 동일한 정책 사용.
+     */
     @Bean
     fun transactionTemplate(transactionManager: PlatformTransactionManager): TransactionTemplate =
-        TransactionTemplate(transactionManager)
+        TransactionTemplate(transactionManager).apply {
+            propagationBehavior = TransactionDefinition.PROPAGATION_REQUIRES_NEW
+        }
 }
