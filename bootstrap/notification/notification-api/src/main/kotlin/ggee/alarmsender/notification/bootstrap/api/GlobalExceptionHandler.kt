@@ -1,6 +1,6 @@
 package ggee.alarmsender.notification.bootstrap.api
 
-import ggee.alarmsender.library.exception.BusinessBaseException
+import ggee.alarmsender.notification.domain.exception.BusinessBaseException
 import ggee.alarmsender.notification.domain.exception.NotificationAccessDeniedException
 import ggee.alarmsender.notification.domain.exception.NotificationNotFoundException
 import org.slf4j.LoggerFactory

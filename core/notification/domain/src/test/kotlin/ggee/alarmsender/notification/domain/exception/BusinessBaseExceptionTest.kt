@@ -1,6 +1,5 @@
 package ggee.alarmsender.notification.domain.exception
 
-import ggee.alarmsender.library.exception.BusinessBaseException
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

@@ -1,7 +1,5 @@
 package ggee.alarmsender.notification.domain.exception
 
-import ggee.alarmsender.library.exception.BusinessBaseException
-
 class NotificationNotFoundException(
     val notificationId: Long,
 ) : BusinessBaseException(
